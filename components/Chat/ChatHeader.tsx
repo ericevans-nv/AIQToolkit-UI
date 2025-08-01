@@ -15,7 +15,17 @@ import {
 import HomeContext from '@/pages/api/home/home.context';
 import { getWorkflowName } from '@/utils/app/helper';
 
-export const ChatHeader = ({ webSocketModeRef = {} }) => {
+interface ChatHeaderProps {
+  webSocketMode: boolean;
+  webSocketConnected: boolean;
+  onWebSocketToggle: () => void;
+}
+
+export const ChatHeader = ({ 
+  webSocketMode, 
+  webSocketConnected, 
+  onWebSocketToggle,
+}: ChatHeaderProps) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(env('NEXT_PUBLIC_RIGHT_MENU_OPEN') === 'true' || process?.env?.NEXT_PUBLIC_RIGHT_MENU_OPEN === 'true' ? true : false);
     const menuRef = useRef(null);
@@ -25,13 +35,13 @@ export const ChatHeader = ({ webSocketModeRef = {} }) => {
     const {
         state: {
           chatHistory,
-          webSocketMode,
-          webSocketConnected,
           lightMode,
           selectedConversation
         },
         dispatch: homeDispatch,
       } = useContext(HomeContext);
+
+    // webSocketMode and webSocketConnected are now always provided as required props
     
     
     const handleLogin = () => {
@@ -40,8 +50,8 @@ export const ChatHeader = ({ webSocketModeRef = {} }) => {
     };
 
     useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
+        const handleClickOutside = (event: any) => {
+            if (menuRef.current && !(menuRef.current as any).contains(event.target)) {
                 setIsMenuOpen(false);
             }
         };
@@ -51,9 +61,9 @@ export const ChatHeader = ({ webSocketModeRef = {} }) => {
     }, []);
 
     return (
-        <div className={`top-0 z-10 flex justify-center items-center h-12 ${selectedConversation?.messages?.length === 0 ? 'bg-none' : 'bg-[#76b900] sticky'}  py-2 px-4 text-sm text-white dark:border-none dark:bg-black dark:text-neutral-200`}>
+        <div className={`top-0 z-10 flex justify-center items-center h-12 ${(selectedConversation?.messages?.length || 0) === 0 ? 'bg-none' : 'bg-[#76b900] sticky'}  py-2 px-4 text-sm text-white dark:border-none dark:bg-black dark:text-neutral-200`}>
             {
-                selectedConversation?.messages?.length > 0 ? 
+                (selectedConversation?.messages?.length || 0) > 0 ? 
                 <div className={`absolute top-6 left-1/2 transform -translate-x-1/2 -translate-y-1/2`}>
                     <span className="text-lg font-semibold text-white">{workflow}</span>
                 </div> 
@@ -107,26 +117,18 @@ export const ChatHeader = ({ webSocketModeRef = {} }) => {
                         <label className="flex items-center gap-2 cursor-pointer flex-shrink-0">
                             <span className={`flex items-center gap-1 justify-evenly text-sm font-medium text-black dark:text-white`}>
                                 WebSocket{' '}
-                                {webSocketModeRef?.current && (
+                                {webSocketMode && (
                                     webSocketConnected ? <IconArrowsSort size={18} color="black" /> : <IconMobiledataOff size={18} color="black" />
                                 )}
                             </span>
                             <div
-                                onClick={() => {
-                                    const newWebSocketMode = !webSocketModeRef.current;
-                                    sessionStorage.setItem('webSocketMode', String(newWebSocketMode));
-                                    webSocketModeRef.current = newWebSocketMode;
-                                    homeDispatch({
-                                        field: 'webSocketMode',
-                                        value: !webSocketMode,
-                                    });
-                                }}
+                                onClick={onWebSocketToggle}
                                 className={`relative inline-flex h-5 w-10 items-center cursor-pointer rounded-full transition-colors duration-300 ease-in-out ${
-                                    webSocketModeRef.current ? 'bg-black dark:bg-[#76b900]' : 'bg-gray-200'
+                                    webSocketMode ? 'bg-black dark:bg-[#76b900]' : 'bg-gray-200'
                                 }`}
                             >
                                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ease-in-out ${
-                                    webSocketModeRef.current ? 'translate-x-6' : 'translate-x-0'
+                                    webSocketMode ? 'translate-x-6' : 'translate-x-0'
                                 }`} />
                             </div>
                         </label>

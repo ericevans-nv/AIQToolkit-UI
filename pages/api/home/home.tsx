@@ -223,6 +223,33 @@ const Home = (props: any) => {
     }
   }, [dispatch, t]);
 
+  // CENTRALIZED SESSIONSTORAGE SYNC  --------------------------------------------
+  // Ensures one-way data flow: React state → sessionStorage
+
+  // Sync selectedConversation to sessionStorage
+  useEffect(() => {
+    if (selectedConversation) {
+      try {
+        saveConversation(selectedConversation);
+        console.log(`💾 Synced selectedConversation to sessionStorage: ${selectedConversation.id}`);
+      } catch (error) {
+        console.error('Failed to sync selectedConversation to sessionStorage:', error);
+      }
+    }
+  }, [selectedConversation]);
+
+  // Sync conversations to sessionStorage
+  useEffect(() => {
+    if (conversations && conversations.length > 0) {
+      try {
+        saveConversations(conversations);
+        console.log(`💾 Synced ${conversations.length} conversations to sessionStorage`);
+      } catch (error) {
+        console.error('Failed to sync conversations to sessionStorage:', error);
+      }
+    }
+  }, [conversations]);
+
   return (
     <HomeContext.Provider
       value={{

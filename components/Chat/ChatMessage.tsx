@@ -19,7 +19,7 @@ import remarkMath from 'remark-math';
 import { BotAvatar } from '@/components/Avatar/BotAvatar';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
-import { getReactMarkDownCustomComponents } from '../Markdown/CustomComponents';
+import { useReactMarkdownCustomComponents } from '../Markdown/CustomComponents';
 import { fixMalformedHtml, generateContentIntermediate } from '@/utils/app/helper';
 
 export interface Props {
@@ -51,6 +51,9 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit}) =>
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // Use the React hook for custom Markdown components (MUST be called at component top-level)
+  const customComponents = useReactMarkdownCustomComponents(messageIndex, message?.id);
 
   const toggleEditing = () => {
     setIsEditing(!isEditing);
@@ -255,7 +258,7 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit}) =>
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeRaw] as any}
                     linkTarget="_blank"
-                    components={getReactMarkDownCustomComponents(messageIndex, message?.id)}
+                    components={customComponents}
                   >
                     {prepareContent({ message, role: 'user' })}
                   </ReactMarkdown>
@@ -294,7 +297,7 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit}) =>
                       }]
                     ]}
                     linkTarget="_blank"
-                    components={getReactMarkDownCustomComponents(messageIndex, message?.id)}
+                    components={customComponents}
                   >
                     {prepareContent({ message, role: 'assistant', intermediateStepsContent: true, responseContent: false })}
                   </MemoizedReactMarkdown>
@@ -311,7 +314,7 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit}) =>
                       }]
                     ]}
                     linkTarget="_blank"
-                    components={getReactMarkDownCustomComponents(messageIndex, message?.id)}
+                    components={customComponents}
                   >
                     {prepareContent({ message, role: 'assistant', intermediateStepsContent: false, responseContent: true })}
                   </MemoizedReactMarkdown>

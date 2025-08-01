@@ -30,6 +30,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { compressImage, getWorkflowName } from '@/utils/app/helper';
 import { appConfig } from '@/utils/app/const';
 import toast from 'react-hot-toast';
+import { useWebSocketTransportContextSafe } from './WebSocketTransportProvider';
 
 
 interface Props {
@@ -52,9 +53,13 @@ export const ChatInput = ({
   const { t } = useTranslation('chat');
 
   const {
-    state: { selectedConversation, messageIsStreaming, loading, webSocketMode },
+    state: { selectedConversation, messageIsStreaming, loading },
     dispatch: homeDispatch,
   } = useContext(HomeContext);
+
+  // Use per-conversation WebSocket state instead of global state
+  const transportContext = useWebSocketTransportContextSafe();
+  const webSocketMode = transportContext?.transport.isWebSocketMode || false;
 
   const workflow = getWorkflowName()
 

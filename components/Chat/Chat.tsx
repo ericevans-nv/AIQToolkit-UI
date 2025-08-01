@@ -20,6 +20,12 @@ import {
   fetchLastMessage,
   processIntermediateMessage,
 } from '@/utils/app/helper';
+import { 
+  processWebSocketMessage, 
+  validateWebSocketMessage, 
+  validateConversationState,
+  type WebSocketMessageProcessorResult 
+} from '@/utils/app/websocketMessageProcessor';
 import { throttle } from '@/utils/data/throttle';
 import { ChatBody, Conversation, Message } from '@/types/chat';
 import HomeContext from '@/pages/api/home/home.context';
@@ -31,8 +37,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { InteractionModal } from '@/components/Chat/ChatInteractionMessage';
 import { webSocketMessageTypes } from '@/utils/app/const';
 import { ChatHeader } from './ChatHeader';
+import { WebSocketTransportProvider, useWebSocketTransportContext } from './WebSocketTransportProvider';
 
-export const Chat = () => {
+// Internal Chat component that has access to WebSocket transport
+const ChatInternal = () => {
   const { t } = useTranslation('chat');
   const {
     state: {
@@ -53,6 +61,9 @@ export const Chat = () => {
     handleUpdateConversation,
     dispatch: homeDispatch,
   } = useContext(HomeContext);
+  
+  // Access WebSocket transport from context
+  const { transport } = useWebSocketTransportContext();
 
   const [currentMessage, setCurrentMessage] = useState<Message>();
   const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
@@ -68,10 +79,6 @@ export const Chat = () => {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [interactionMessage, setInteractionMessage] = useState(null);
-  const webSocketRef = useRef(null);
-  const webSocketConnectedRef = useRef(false);
-  const webSocketModeRef = useRef(sessionStorage.getItem('webSocketMode') === 'false' ? false : webSocketMode);
-  let websocketLoadingToastId = null;
   const lastScrollTop = useRef(0); // Store last known scroll position
 
   // Add these variables near the top of your component
@@ -84,337 +91,19 @@ export const Chat = () => {
     setModalOpen(true);
   };
 
-  const handleUserInteraction = ({interactionMessage = {}, userResponse = ''} : any) => {
-    // todo send user input to websocket server as user response to interaction message
-    // console.log("User response:", userResponse);
-    const wsMessage = {
-      type: webSocketMessageTypes.userInteractionMessage,
-      id: uuidv4(), //new id for every new message
-      thread_id: interactionMessage?.thread_id, // same thread_id from interaction message received
-      parent_id: interactionMessage?.parent_id, // same parent_id from interaction message received
-      content: {
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: userResponse
-              }
-            ]
-          }
-        ]
-      },
-      timestamp: new Date().toISOString(),
-    };
-    console.log('sending user response for interaction message via websocket', wsMessage)
-    webSocketRef?.current?.send(JSON.stringify(wsMessage));
-  };
+  const handleUserInteraction = useCallback(({interactionMessage = {}, userResponse = ''}: any) => {
+    console.log('Sending user response for interaction message via WebSocket transport', userResponse);
+    transport.sendUserInteraction(interactionMessage, userResponse);
+  }, [transport]);
 
   useEffect(() => {
     selectedConversationRef.current = selectedConversation;
   }, [selectedConversation]);
 
-  useEffect(() => {
-    if (webSocketModeRef?.current && !webSocketConnectedRef.current) {
-      connectWebSocket();
-    }
-
-    // todo cancel ongoing connection attempts
-    else {
-      toast.dismiss(websocketLoadingToastId);
-    }
-
-    return () => {
-      if (webSocketRef?.current) {
-        webSocketRef?.current?.close();
-        webSocketConnectedRef.current = false;
-      }
-    };
-  }, [webSocketModeRef?.current, webSocketURL]);
-
-  const connectWebSocket = async (retryCount = 0) => {
-
-    const maxRetries = 3;
-    const retryDelay = 1000; // 1-second delay between retries
-
-    if (!(sessionStorage.getItem('webSocketURL') || webSocketURL)) {
-      toast.error("Please set a valid WebSocket server in settings");
-      return false;
-    }
-
-    return new Promise((resolve) => {
-      // Universal cookie handling for both cross-origin and same-origin connections
-      const getCookie = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      const sessionCookie = getCookie('aiqtoolkit-session');
-      let wsUrl: string = sessionStorage.getItem('webSocketURL') || webSocketURL || 'ws://127.0.0.1:8000/websocket';
-
-      // Determine if this is a cross-origin connection
-      const wsUrlObj = new URL(wsUrl);
-      const isCrossOrigin = wsUrlObj.origin !== window.location.origin;
-
-      // Always add session cookie as query parameter for reliability
-      // This works for both cross-origin (required) and same-origin (redundant but harmless)
-      if (sessionCookie) {
-        const separator = wsUrl.includes('?') ? '&' : '?';
-        wsUrl += `${separator}session=${encodeURIComponent(sessionCookie)}`;
-
-        console.log(`WebSocket: ${isCrossOrigin ? 'Cross-origin' : 'Same-origin'} connection with session:`, sessionCookie.substring(0, 10) + '...');
-      } else {
-        console.log('WebSocket: No session cookie found');
-      }
-
-      const ws = new WebSocket(wsUrl);
-
-      websocketLoadingToastId = toast.loading(
-        "WebSocket is not connected, trying to connect...",
-        { id: "websocketLoadingToastId" }
-      );
-
-      ws.onopen = () => {
-
-        toast.success("Connected to " + (sessionStorage.getItem('webSocketURL') || webSocketURL), {
-          id: "websocketSuccessToastId",
-        });
-        toast.dismiss(websocketLoadingToastId);
-
-        // using ref due to usecallback for handlesend which will be recreated during next render when dependency array changes
-        // so values inside of are still one and be updated after next render
-        // so we'll not see any changes to websocket (state variable) or webSocketConnected (context variable) changes while the function is executing
-        webSocketConnectedRef.current = true;
-        homeDispatch({ field: "webSocketConnected", value: true });
-        webSocketRef.current = ws;
-        resolve(true); // Resolve true only when connected
-      };
-
-      ws.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        handleWebSocketMessage(message);
-      };
-
-      ws.onclose = async () => {
-        if (retryCount < maxRetries) {
-          retryCount++;
-
-          // Retry and capture the result
-          if(webSocketModeRef?.current) {
-             // Wait for retry delay
-            await new Promise((res) => setTimeout(res, retryDelay));
-            console.log(`Retrying connection... Attempt ${retryCount}`);
-            const success = await connectWebSocket(retryCount);
-            resolve(success);
-          }
-        } else {
-          // Only resolve(false) after all retries fail
-          console.log("WebSocket connection failed after retries.");
-          homeDispatch({ field: "webSocketConnected", value: false });
-          webSocketConnectedRef.current = false;
-          homeDispatch({ field: "loading", value: false });
-          homeDispatch({ field: "messageIsStreaming", value: false });
-          toast.dismiss(websocketLoadingToastId);
-          toast.error("WebSocket connection failed.", {
-            id: "websocketErrorToastId",
-          });
-          resolve(false);
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.log("WebSocket connection error");
-        homeDispatch({ field: "webSocketConnected", value: false });
-        webSocketConnectedRef.current = false;
-        homeDispatch({ field: "loading", value: false });
-        homeDispatch({ field: "messageIsStreaming", value: false });
-        ws.close(); // Ensure the WebSocket is closed on error
-      };
-    });
-  };
+  // WebSocket logic moved to useWebSocketTransport hook
 
 
-  // Re-attach the WebSocket handler when intermediateStepOverride changes because we need updated value from settings
-  useEffect(() => {
-    if (webSocketRef.current) {
-      webSocketRef.current.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        handleWebSocketMessage(message);
-      };
-    }
-  }, [intermediateStepOverride]);
-
-
-  const handleWebSocketMessage = (message: any) => {
-    // console.log('Received message via websocket', message);
-
-    // todo ingore messages that are coming after stop conversation
-    // idea - add a field in stored messsage that indicates if its been cancelled
-
-    // stop loading after receiving a message
-    homeDispatch({ field: 'loading', value: false });
-    if(message?.status === 'complete') {
-      // stop streaming status after receiving a message with status completed -> END
-      // to show the message on UI and scroll to the bottom after 500ms delay
-      setTimeout(() => {
-        homeDispatch({ field: 'messageIsStreaming', value: false });
-      }, 200);
-    }
-
-    // handling human in the loop messages
-    if(message?.type === webSocketMessageTypes.systemInteractionMessage) {
-      // Check for OAuth consent message and automatically open OAuth URL directly
-      if(message?.content?.input_type === 'oauth_consent') {
-        // Expect the OAuth URL to be directly in the message content
-        const oauthUrl = message?.content?.oauth_url || message?.content?.redirect_url || message?.content?.text;
-        if (oauthUrl) {
-          // Open the OAuth URL directly in a popup window
-          const popup = window.open(
-            oauthUrl,
-            'oauth-popup',
-            'width=600,height=700,scrollbars=yes,resizable=yes'
-          );
-
-          // Optional: Set up message listener for OAuth completion
-          const handleOAuthComplete = (event: MessageEvent) => {
-            // You can handle OAuth completion messages here if needed
-            console.log('OAuth flow completed:', event.data);
-            if (popup && !popup.closed) {
-              popup.close();
-            }
-            window.removeEventListener('message', handleOAuthComplete);
-          };
-          window.addEventListener('message', handleOAuthComplete);
-        } else {
-          console.error('OAuth consent message received but no URL found in content:', message?.content);
-          toast.error('OAuth URL not found in message content');
-        }
-        return; // Don't process further or show modal
-      }
-
-      openModal(message)
-    }
-
-    if(sessionStorage.getItem('enableIntermediateSteps') === 'false' && message?.type === webSocketMessageTypes.systemIntermediateMessage) {
-      console.log('ignoring intermediate steps');
-      return
-    }
-
-    // handle error messages
-    if(message?.type === 'error') {
-      message.content.text = 'Something went wrong. Please try again. \n\n' + `<details id=${message?.id}><summary></summary>${JSON.stringify(message?.content)}</details>`
-      // to show the message on UI and scroll to the bottom after 500ms delay
-      setTimeout(() => {
-        homeDispatch({ field: 'messageIsStreaming', value: false });
-      }, 200);
-    }
-
-    // updating conversation with new message
-    let updatedMessages
-    let selectedConversation = window.sessionStorage.getItem('selectedConversation')
-    selectedConversation = JSON.parse(selectedConversation ?? '{}')
-    let conversations = JSON.parse(window.sessionStorage.getItem('conversationsHistory')?? '[]')
-
-    // logic
-    // if this is the first message (of the assistant response to user message), then add the message to the conversation as 'assistant' message
-    // else append the message to the exisiting assistant message (part of the stream appending)
-    // look through the conversation messages and find if a assistant message has id = parentId
-    const isLastMessageFromAssistant = selectedConversation?.messages[selectedConversation?.messages?.length - 1].role === 'assistant'
-    if(isLastMessageFromAssistant) {
-      // console.log('found assistant message, appending to it')
-      // update the assistant message inside selectedConversation
-      updatedMessages = selectedConversation?.messages?.map((msg, idx) => {
-        if (msg.role === 'assistant' && idx === selectedConversation?.messages?.length - 1) {
-          // do this only for response token
-          let updatedContent = msg.content || '';
-          if(message?.type === webSocketMessageTypes.systemResponseMessage) {
-            updatedContent = updatedContent + (message?.content?.text || '');
-          }
-
-          // find index for new message
-          // it can be the length of the intermediate messages last one
-          let index = msg?.intermediateSteps?.length || 0;
-          message = {...message, index}
-
-          // process IntermediateSteps
-          let processedIntermediateSteps = (message?.type === webSocketMessageTypes.systemIntermediateMessage)
-            ? processIntermediateMessage(msg.intermediateSteps || [], message, sessionStorage.getItem('intermediateStepOverride') === 'false' ? false : intermediateStepOverride)
-            : msg.intermediateSteps || [];
-
-          if(message?.type === webSocketMessageTypes.systemInteractionMessage){
-            msg.humanInteractionMessages = msg.humanInteractionMessages || [];
-            msg.humanInteractionMessages.push(message);
-          }
-          if(message?.type === 'error') {
-            msg.errorMessages = msg.errorMessages || [];
-            msg.errorMessages.push(message);
-          }
-
-          // update the assistant message with new content and processed intermediate steps
-          return {
-            ...msg,
-            content: updatedContent,
-            intermediateSteps: processedIntermediateSteps,
-            humanInteractionMessages: msg.humanInteractionMessages || [],
-            errorMessages: msg.errorMessages || []
-          };
-        }
-        return msg;
-      });
-    } else {
-      // console.log('didnt find assistant message, adding new one (first chunk of response)')
-      // add the new message to the conversation as 'assistant' message
-      updatedMessages = [
-        ...(selectedConversation?.messages || []),
-        {
-          role: 'assistant',
-          id: message?.id,
-          parentId: message?.parent_id,
-          content: message?.content?.text || '',
-          intermediateSteps: (message?.type === webSocketMessageTypes.systemIntermediateMessage) ? [{...message, index: 0}] : [],
-          humanInteractionMessages: (message?.type === webSocketMessageTypes.systemInteractionMessage) ? [message] : [],
-          errorMessages: message?.type === 'error' ? [message] : []
-        },
-      ];
-    }
-
-    // update the conversation
-    let updatedConversation = {
-      ...selectedConversation,
-      messages: updatedMessages,
-    };
-    homeDispatch({
-      field: 'selectedConversation',
-      value: updatedConversation,
-    });
-
-    // save the conversation to session storage
-    saveConversation(updatedConversation);
-
-    // update the conversations
-    const updatedConversations = conversations?.map(
-      (conversation) => {
-        if (conversation.id === updatedConversation?.id) {
-          return updatedConversation;
-        }
-        return conversation;
-      },
-    ) || [];
-
-    if (updatedConversations.length === 0) {
-      updatedConversations.push(updatedConversation);
-    }
-    homeDispatch({
-      field: 'conversations',
-      value: updatedConversations,
-    });
-
-    // save the conversations to session storage
-    saveConversations(updatedConversations);
-  };
+  // handleWebSocketMessage moved to main Chat component
 
 
   const handleSend = useCallback(
@@ -456,9 +145,9 @@ export const Chat = () => {
         homeDispatch({ field: 'messageIsStreaming', value: true });
 
         // websocket connection chat request
-        if (webSocketModeRef?.current) {
-          if (!webSocketConnectedRef?.current) {
-            const connected = await connectWebSocket();
+        if (transport.isWebSocketMode) {
+          if (!transport.isConnected) {
+            const connected = await transport.connect();
             if (!connected) {
               console.log("WebSocket connection failed.");
               homeDispatch({ field: "loading", value: false });
@@ -470,10 +159,12 @@ export const Chat = () => {
               handleSend(message, 1)
               return
             }
-
           }
           toast.dismiss()
 
+          // ✅ HYBRID: Remove placeholder creation from handleSend 
+          // The previous implementation created assistant messages dynamically on first WebSocket response
+          // This approach was more reliable - let's restore it
 
           saveConversation(updatedConversation);
           const updatedConversations: Conversation[] = conversations.map(
@@ -503,11 +194,11 @@ export const Chat = () => {
                     type: 'text',
                     text: message?.content?.trim() || ''
                   },
-                  ...(message?.content?.attachments?.length > 0
-                    ? message?.content?.attachments?.map(attachment => ({
+                  ...(((message as any)?.content?.attachments?.length > 0)
+                    ? ((message as any)?.content?.attachments?.map((attachment: any) => ({
                         type: 'image',
                         image_url: attachment?.content
-                      }))
+                      })))
                     : [])
                 ]
               };
@@ -528,18 +219,17 @@ export const Chat = () => {
             })
           }
 
-          const wsMessage = {
-            type: webSocketMessageTypes.userMessage,
-            schema_type: sessionStorage.getItem('webSocketSchema') || webSocketSchema,
-            id: message?.id,
-            conversation_id: selectedConversation.id,
-            content: {
-              messages: chatMessages
-            },
-            timestamp: new Date().toISOString(),
-          };
-          // console.log('Sent message via websocket', wsMessage)
-          webSocketRef?.current?.send(JSON.stringify(wsMessage));
+          // Send via WebSocket transport
+          const success = transport.sendUserMessage({
+            messages: chatMessages
+          });
+
+          if (!success) {
+            console.error("Failed to send WebSocket message via transport");
+            homeDispatch({ field: "loading", value: false });
+            homeDispatch({ field: "messageIsStreaming", value: false });
+          }
+          
           return
         }
 
@@ -638,8 +328,8 @@ export const Chat = () => {
               }
 
               // Process complete intermediate steps
-              let rawIntermediateSteps = [];
-              let messages = chunkValue.match(/<intermediatestep>(.*?)<\/intermediatestep>/gs) || [];
+              let rawIntermediateSteps: any[] = [];
+              let messages = chunkValue.match(/<intermediatestep>(.*?)<\/intermediatestep>/g) || [];
               for (const message of messages) {
                 try {
                   const jsonString = message.replace('<intermediatestep>', '').replace('</intermediatestep>', '').trim();
@@ -665,7 +355,7 @@ export const Chat = () => {
                 isFirst = false;
 
                 // loop through rawIntermediateSteps and add them to the processedIntermediateSteps
-                let processedIntermediateSteps = []
+                let processedIntermediateSteps: any[] = []
                 rawIntermediateSteps.forEach((step) => {
                   processedIntermediateSteps = processIntermediateMessage(processedIntermediateSteps, step, sessionStorage.getItem('intermediateStepOverride') === 'false' ? false : intermediateStepOverride )
                 })
@@ -696,7 +386,7 @@ export const Chat = () => {
                     if (index === updatedConversation.messages.length - 1) {
                       // process intermediate steps
                       // need to loop through raw rawIntermediateSteps and add them to the updatedIntermediateSteps
-                      let updatedIntermediateSteps = [...message?.intermediateSteps]
+                      let updatedIntermediateSteps: any[] = [...(message?.intermediateSteps || [])]
                       rawIntermediateSteps.forEach((step) => {
                         updatedIntermediateSteps = processIntermediateMessage(updatedIntermediateSteps, step, sessionStorage.getItem('intermediateStepOverride') === 'false' ? false : intermediateStepOverride)
                       })
@@ -782,7 +472,7 @@ export const Chat = () => {
           saveConversation(updatedConversation);
           homeDispatch({ field: 'loading', value: false });
           homeDispatch({ field: 'messageIsStreaming', value: false });
-          if (error === 'aborted' || error?.name === 'AbortError') {
+          if (error === 'aborted' || (error as any)?.name === 'AbortError') {
             return;
           } else {
             console.log('error during chat completion - ', error);
@@ -796,7 +486,7 @@ export const Chat = () => {
       selectedConversation,
       homeDispatch,
       chatHistory,
-      webSocketConnected,
+      transport,
       webSocketSchema,
       chatCompletionURL,
       expandIntermediateSteps,
@@ -830,7 +520,7 @@ export const Chat = () => {
       }
       scrollTimeout.current = setTimeout(() => {
         isUserInitiatedScroll.current = false;
-      }, 200);
+      }, 200) as any;
     };
 
     // Add event listeners for user interactions
@@ -942,10 +632,14 @@ export const Chat = () => {
           ref={chatContainerRef}
           onScroll={handleScroll}
         >
-          <ChatHeader webSocketModeRef={webSocketModeRef} />
+          <ChatHeader 
+            webSocketMode={transport.isWebSocketMode}
+            webSocketConnected={transport.isConnected}
+            onWebSocketToggle={() => transport.setWebSocketMode(!transport.isWebSocketMode)}
+          />
           {selectedConversation?.messages.map((message, index) => (
             <MemoizedChatMessage
-              key={index}
+              key={message.id || `message-${index}`}
               message={message}
               messageIndex={index}
               onEdit={(editedMessage) => {
@@ -976,7 +670,7 @@ export const Chat = () => {
               handleSend(currentMessage, 0);
             } else {
               const lastUserMessage = fetchLastMessage(
-                {messages: selectedConversation?.messages, role: 'user'}
+                {messages: (selectedConversation?.messages || []) as any, role: 'user'}
               );
               lastUserMessage && handleSend(lastUserMessage, 1);
             }
@@ -989,4 +683,156 @@ export const Chat = () => {
     </div>
   );
 };
+
+// Main Chat component that provides WebSocket transport
+export const Chat = () => {
+  const {
+    state: {
+      selectedConversation,
+      conversations,
+      webSocketURL,
+      webSocketSchema,
+    },
+    dispatch: homeDispatch,
+  } = useContext(HomeContext);
+
+  // Handler for WebSocket messages - refactored to use React state exclusively
+  const handleWebSocketMessage = useCallback((message: any) => {
+    console.log(`🔄 WebSocket message received for conversation: ${selectedConversation?.id}`);
+    
+    try {
+      // Validate message structure
+      if (!validateWebSocketMessage(message)) {
+        console.error('Invalid WebSocket message structure:', message);
+        return;
+      }
+
+      // Validate current state - using React state from HomeContext
+      if (!selectedConversation) {
+        console.error('No selected conversation available for WebSocket message processing');
+        return;
+      }
+
+      const stateValidation = validateConversationState(conversations, selectedConversation);
+      if (!stateValidation.isValid) {
+        console.error('Invalid conversation state:', stateValidation.error);
+        return;
+      }
+
+      // ✅ RESTORE: Handle system interaction messages (like OAuth consent and other modals)
+      if (message?.type === webSocketMessageTypes.systemInteractionMessage) {
+        // Handle OAuth consent messages
+        if (message?.content?.input_type === 'oauth_consent') {
+          const oauthUrl = message?.content?.oauth_url || message?.content?.redirect_url || message?.content?.text;
+          if (oauthUrl) {
+            const popup = window.open(
+              oauthUrl,
+              'oauth-popup',
+              'width=600,height=700,scrollbars=yes,resizable=yes'
+            );
+
+            const handleOAuthComplete = (event: MessageEvent) => {
+              console.log('OAuth flow completed:', event.data);
+              if (popup && !popup.closed) {
+                popup.close();
+              }
+              window.removeEventListener('message', handleOAuthComplete);
+            };
+            window.addEventListener('message', handleOAuthComplete);
+          } else {
+            console.error('OAuth consent message received but no URL found in content:', message?.content);
+            toast.error('OAuth URL not found in message content');
+          }
+          return;
+        }
+        
+        // ✅ RESTORE: Other interaction messages should be processed for assistant updates
+        // Continue to normal processing to add to conversation
+      }
+
+      // Process message using pure function with React state as input
+      const processingResult: WebSocketMessageProcessorResult | null = processWebSocketMessage(
+        message,
+        conversations, // From React state (HomeContext)
+        selectedConversation, // From React state (HomeContext)
+        webSocketSchema
+      );
+
+      if (!processingResult) {
+        console.warn('WebSocket message processing returned null, skipping update');
+        return;
+      }
+
+
+
+      // Update React state atomically
+      homeDispatch({
+        field: 'selectedConversation',
+        value: processingResult.updatedSelectedConversation,
+      });
+
+      homeDispatch({
+        field: 'conversations',
+        value: processingResult.updatedConversations,
+      });
+
+      // ✅ HYBRID: Use previous implementation's completion logic
+      homeDispatch({ field: 'loading', value: false }); // Always stop loading
+      
+      if (message?.status === 'complete') {
+        // ✅ EXACT PREVIOUS LOGIC: Stop streaming with delay when complete
+        setTimeout(() => {
+          homeDispatch({ field: 'messageIsStreaming', value: false });
+        }, 200);
+      }
+
+      // Note: sessionStorage sync now happens via useEffect in home.tsx
+      // This ensures one-way data flow: React state → sessionStorage
+      
+    } catch (error) {
+      console.error('Error processing WebSocket message:', error);
+      // Don't update state if processing failed - preserve existing conversations
+      homeDispatch({ field: 'loading', value: false });
+      homeDispatch({ field: 'messageIsStreaming', value: false });
+    }
+  }, [conversations, selectedConversation, homeDispatch, webSocketSchema]);
+
+  // Handler for connection changes
+  const handleConnectionChange = useCallback((connected: boolean) => {
+    console.log(`🔌 WebSocket connection changed: ${connected} for conversation: ${selectedConversation?.id}`);
+    
+    // Note: No longer updating global webSocketConnected state to prevent cross-conversation interference
+    // Each conversation manages its own connection state via transport props
+    
+    if (!connected) {
+      // Only update loading/streaming state for the current conversation
+      homeDispatch({ field: 'loading', value: false });
+      homeDispatch({ field: 'messageIsStreaming', value: false });
+    }
+  }, [selectedConversation?.id, homeDispatch]);
+
+  // Handler for WebSocket errors
+  const handleWebSocketError = useCallback((error: any) => {
+    console.error('WebSocket error:', error);
+    toast.error(`WebSocket error for conversation ${selectedConversation?.id?.slice(0, 8)}`);
+  }, [selectedConversation?.id]);
+
+  if (!selectedConversation) {
+    return null;
+  }
+
+  return (
+    <WebSocketTransportProvider
+      conversationId={selectedConversation.id}
+      webSocketURL={webSocketURL}
+      webSocketSchema={webSocketSchema}
+      onMessage={handleWebSocketMessage}
+      onConnectionChange={handleConnectionChange}
+      onError={handleWebSocketError}
+    >
+      <ChatInternal />
+    </WebSocketTransportProvider>
+  );
+};
+
 Chat.displayName = 'Chat';

@@ -8,8 +8,12 @@ import { CustomSummary } from '@/components/Markdown/CustomSummary';
 import { Video } from '@/components/Markdown/Video';
 import { Image } from '@/components/Markdown/Image';
 
-
-export const getReactMarkDownCustomComponents = (messageIndex = 0, messageId = '') => {
+/**
+ * React hook for creating custom Markdown components
+ * This hook must ONLY be called from within a React component body
+ * Never call this from utility functions, loops, or conditionals
+ */
+export const useReactMarkdownCustomComponents = (messageIndex = 0, messageId = '') => {
   return useMemo(() => ({
     code: memo(
       ({ node, inline, className, children, ...props }: { children: React.ReactNode; [key: string]: any }) => {
@@ -34,7 +38,7 @@ export const getReactMarkDownCustomComponents = (messageIndex = 0, messageId = '
       }
     ),
   
-    chart: memo(({ children }) => {
+    chart: memo(({ children }: { children: any }) => {
       try {
         const payload = JSON.parse(children[0].replaceAll("\n", ""));
         return payload ? <Chart payload={payload} /> : null;
@@ -44,37 +48,37 @@ export const getReactMarkDownCustomComponents = (messageIndex = 0, messageId = '
       }
     }, (prevProps, nextProps) => isEqual(prevProps.children, nextProps.children)),
   
-    table: memo(({ children }) => (
+    table: memo(({ children }: { children: any }) => (
       <table className="border-collapse border border-black px-3 py-1 dark:border-white">
         {children}
       </table>
     ), (prevProps, nextProps) => isEqual(prevProps.children, nextProps.children)),
   
-    th: memo(({ children }) => (
+    th: memo(({ children }: { children: any }) => (
       <th className="break-words border border-black bg-gray-500 px-3 py-1 text-white dark:border-white">
         {children}
       </th>
     ), (prevProps, nextProps) => isEqual(prevProps.children, nextProps.children)),
   
-    td: memo(({ children }) => (
+    td: memo(({ children }: { children: any }) => (
       <td className="break-words border border-black px-3 py-1 dark:border-white">
         {children}
       </td>
     ), (prevProps, nextProps) => isEqual(prevProps.children, nextProps.children)),
   
-    a: memo(({ href, children, ...props }) => (
+    a: memo(({ href, children, ...props }: { href?: string; children: any; [key: string]: any }) => (
       <a href={href} className="text-[#76b900] no-underline hover:underline" {...props}>
         {children}
       </a>
     ), (prevProps, nextProps) => isEqual(prevProps.children, nextProps.children)),
   
-    li: memo(({ children, ...props }) => (
+    li: memo(({ children, ...props }: { children: any; [key: string]: any }) => (
       <li className="leading-[1.35rem] mb-1 list-disc" {...props}>
         {children}
       </li>
     ), (prevProps, nextProps) => isEqual(prevProps.children, nextProps.children)),
   
-    sup: memo(({ children, ...props }) => {
+    sup: memo(({ children, ...props }: { children: any; [key: string]: any }) => {
       const validContent = Array.isArray(children)
         ? children.filter(child => typeof child === 'string' && child.trim() && child.trim() !== ",").join("")
         : typeof children === 'string' && children.trim() && children.trim() !== "," ? children : null;
@@ -102,7 +106,7 @@ export const getReactMarkDownCustomComponents = (messageIndex = 0, messageId = '
     }),
     img: memo((props) => <Image {...props} />, (prevProps, nextProps) => isEqual(prevProps, nextProps)),
     video: memo((props) => <Video {...props} />, (prevProps, nextProps) => isEqual(prevProps, nextProps)),
-    details: memo((props) => <CustomDetails messageIndex={messageIndex} {...props} />, (prevProps, nextProps) => isEqual(prevProps, nextProps)),
-    summary: memo((props) => <CustomSummary {...props} />, (prevProps, nextProps) => isEqual(prevProps, nextProps))
-  }),[messageIndex, messageId]);
+    details: memo((props: any) => <CustomDetails messageIndex={messageIndex} {...props} />, (prevProps, nextProps) => isEqual(prevProps, nextProps)),
+    summary: memo((props: any) => <CustomSummary {...props} />, (prevProps, nextProps) => isEqual(prevProps, nextProps))
+  }), [messageIndex, messageId]);
 };
