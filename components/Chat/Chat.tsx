@@ -312,22 +312,28 @@ export const Chat = () => {
       }, 200);
     }
 
-    // updating conversation with new message
-    let updatedMessages
-    let selectedConversation = window.sessionStorage.getItem('selectedConversation')
-    selectedConversation = JSON.parse(selectedConversation ?? '{}')
-    let conversations = JSON.parse(window.sessionStorage.getItem('conversationsHistory')?? '[]')
+      // updating conversation with new message
+  let updatedMessages
+  // Use current state from HomeContext instead of reading from sessionStorage
+  const currentSelectedConversation = selectedConversationRef.current;
+  const currentConversations = conversations;
+
+  // Early return if no selected conversation
+  if (!currentSelectedConversation) {
+    console.error('No selected conversation found for WebSocket message');
+    return;
+  }
 
     // logic
     // if this is the first message (of the assistant response to user message), then add the message to the conversation as 'assistant' message
     // else append the message to the exisiting assistant message (part of the stream appending)
     // look through the conversation messages and find if a assistant message has id = parentId
-    const isLastMessageFromAssistant = selectedConversation?.messages[selectedConversation?.messages?.length - 1].role === 'assistant'
+    const isLastMessageFromAssistant = currentSelectedConversation?.messages[currentSelectedConversation?.messages?.length - 1].role === 'assistant'
     if(isLastMessageFromAssistant) {
       // console.log('found assistant message, appending to it')
-      // update the assistant message inside selectedConversation
-      updatedMessages = selectedConversation?.messages?.map((msg, idx) => {
-        if (msg.role === 'assistant' && idx === selectedConversation?.messages?.length - 1) {
+      // update the assistant message inside currentSelectedConversation
+      updatedMessages = currentSelectedConversation?.messages?.map((msg, idx) => {
+        if (msg.role === 'assistant' && idx === currentSelectedConversation?.messages?.length - 1) {
           // do this only for response token
           let updatedContent = msg.content || '';
           if(message?.type === webSocketMessageTypes.systemResponseMessage) {
@@ -368,9 +374,9 @@ export const Chat = () => {
       // console.log('didnt find assistant message, adding new one (first chunk of response)')
       // add the new message to the conversation as 'assistant' message
       updatedMessages = [
-        ...(selectedConversation?.messages || []),
+        ...(currentSelectedConversation?.messages || []),
         {
-          role: 'assistant',
+          role: 'assistant' as const,
           id: message?.id,
           parentId: message?.parent_id,
           content: message?.content?.text || '',
@@ -383,9 +389,16 @@ export const Chat = () => {
 
     // update the conversation
     let updatedConversation = {
-      ...selectedConversation,
+      ...currentSelectedConversation,
       messages: updatedMessages,
     };
+    
+    // Ensure the conversation has a valid id
+    if (!updatedConversation.id) {
+      console.error('Updated conversation missing id');
+      return;
+    }
+    
     homeDispatch({
       field: 'selectedConversation',
       value: updatedConversation,
@@ -394,19 +407,30 @@ export const Chat = () => {
     // save the conversation to session storage
     saveConversation(updatedConversation);
 
-    // update the conversations
-    const updatedConversations = conversations?.map(
+    // update the conversations - preserve all existing conversations
+    console.log('Before update - conversations length:', currentConversations.length);
+    console.log('Updated conversation ID:', updatedConversation.id);
+    
+    const updatedConversations = currentConversations.map(
       (conversation) => {
         if (conversation.id === updatedConversation?.id) {
           return updatedConversation;
         }
         return conversation;
       },
-    ) || [];
+    );
 
-    if (updatedConversations.length === 0) {
-      updatedConversations.push(updatedConversation);
+    console.log('After update - conversations length:', updatedConversations.length);
+    
+    // Ensure we don't lose conversations - this should never happen now
+    if (updatedConversations.length !== currentConversations.length) {
+      console.error('CRITICAL: Conversation count mismatch!', {
+        before: currentConversations.length,
+        after: updatedConversations.length,
+        updatedId: updatedConversation?.id
+      });
     }
+    
     homeDispatch({
       field: 'conversations',
       value: updatedConversations,
