@@ -108,7 +108,6 @@ export const Chat = () => {
       },
       timestamp: new Date().toISOString(),
     };
-    console.log('sending user response for interaction message via websocket', wsMessage)
     webSocketRef?.current?.send(JSON.stringify(wsMessage));
   };
 
@@ -171,9 +170,7 @@ export const Chat = () => {
         const separator = wsUrl.includes('?') ? '&' : '?';
         wsUrl += `${separator}session=${encodeURIComponent(sessionCookie)}`;
 
-        console.log(`WebSocket: ${isCrossOrigin ? 'Cross-origin' : 'Same-origin'} connection with session:`, sessionCookie.substring(0, 10) + '...');
       } else {
-        console.log('WebSocket: No session cookie found');
       }
 
       const ws = new WebSocket(wsUrl);
@@ -218,7 +215,6 @@ export const Chat = () => {
           }
         } else {
           // Only resolve(false) after all retries fail
-          console.log("WebSocket connection failed after retries.");
           homeDispatch({ field: "webSocketConnected", value: false });
           webSocketConnectedRef.current = false;
           homeDispatch({ field: "loading", value: false });
@@ -232,7 +228,7 @@ export const Chat = () => {
       };
 
       ws.onerror = (error) => {
-        console.log("WebSocket connection error");
+        // TODO EE console.log("WebSocket connection error");
         homeDispatch({ field: "webSocketConnected", value: false });
         webSocketConnectedRef.current = false;
         homeDispatch({ field: "loading", value: false });
@@ -255,8 +251,8 @@ export const Chat = () => {
 
 
   const handleWebSocketMessage = (message: any) => {
-    console.log('🔵 [WebSocket] Received message via websocket', message?.type, message?.status);
-    console.log('🔵 [WebSocket] Incoming message for conversation:', message?.conversation_id);
+    // TODO EE console.log('🔵 [WebSocket] Received message via websocket', message?.type, message?.status);
+    // TODO EE console.log('🔵 [WebSocket] Incoming message for conversation:', message?.conversation_id);
 
     // todo ingore messages that are coming after stop conversation
     // idea - add a field in stored messsage that indicates if its been cancelled
@@ -306,7 +302,7 @@ export const Chat = () => {
     }
 
     if(sessionStorage.getItem('enableIntermediateSteps') === 'false' && message?.type === webSocketMessageTypes.systemIntermediateMessage) {
-      console.log('ignoring intermediate steps');
+      // TODO EE console.log('ignoring intermediate steps');
       return
     }
 
@@ -319,97 +315,141 @@ export const Chat = () => {
       }, 200);
     }
 
-    // Extract conversation ID from the WebSocket message
+    // ✅ FILTER: Only handle system_response with status: 'in_progress'
+    if (
+      message?.type === webSocketMessageTypes.systemResponseMessage &&
+      message?.status === 'complete'
+    ) {
+      console.log('🟡 [SYSTEM_RESPONSE] Skipping system_response:complete - no content to append');
+      return;
+    }
+
+    // 🔍 LOG: System Response Message Details
+    if (message?.type === webSocketMessageTypes.systemResponseMessage) {
+      console.log('🔴 [SYSTEM_RESPONSE] Received system_response_message:', {
+        status: message?.status,
+        content: message?.content?.text,
+        contentLength: message?.content?.text?.length || 0,
+        conversationId: message?.conversation_id
+      });
+    }
+
     const targetConversationId = message?.conversation_id;
     if (!targetConversationId) {
-      console.error('🔴 [WebSocket] No conversation_id found in WebSocket message');
+      // TODO EE console.error('❌ Missing conversation_id in message');
       return;
     }
 
-    // Use conversationsRef.current to avoid stale closure
     const currentConversations = conversationsRef.current;
     const currentSelectedConversation = selectedConversationRef.current;
-    
-    console.log('🔵 [WebSocket] All conversation IDs:', currentConversations.map(c => c.id));
-    console.log('🔵 [WebSocket] Current conversations count:', currentConversations.length);
+    const targetConversation = currentConversations.find(c => c.id === targetConversationId);
 
-    // Find the target conversation by conversation_id
-    const targetConversation = currentConversations.find(conv => conv.id === targetConversationId);
     if (!targetConversation) {
-      console.error('🔴 [WebSocket] Target conversation not found:', targetConversationId);
+      // TODO EE console.error('❌ Target conversation not found:', targetConversationId);
       return;
     }
 
-    console.log('🔵 [WebSocket] Found target conversation:', targetConversation.id);
+    // ✅ Normalize content (text or fallback)
+    const isInProgress = message?.status === 'in_progress';
+    const incomingText = (message?.content?.text || '').trim();
+    const shouldAppendContent = isInProgress && incomingText !== '';
 
-    // updating conversation with new message
-    let updatedMessages;
-    
-    // Check if the last message in target conversation is from assistant
-    const isLastMessageFromAssistant = targetConversation?.messages[targetConversation?.messages?.length - 1]?.role === 'assistant';
-    
-    if(isLastMessageFromAssistant) {
-      console.log('🔵 [WebSocket] Appending to existing assistant message');
-      // update the assistant message inside targetConversation
-      updatedMessages = targetConversation?.messages?.map((msg, idx) => {
-        if (msg.role === 'assistant' && idx === targetConversation?.messages?.length - 1) {
-          // do this only for response token
-          let updatedContent = msg.content || '';
-          if(message?.type === webSocketMessageTypes.systemResponseMessage) {
-            updatedContent = updatedContent + (message?.content?.text || '');
-          }
+    let updatedMessages = targetConversation.messages;
+    const lastMessage = updatedMessages.at(-1);
+    const isLastAssistant = lastMessage?.role === 'assistant';
 
-          // find index for new message
-          // it can be the length of the intermediate messages last one
-          let index = msg?.intermediateSteps?.length || 0;
-          message = {...message, index}
+    // ✅ Append or create assistant message
+    if (shouldAppendContent) {
+      if (isLastAssistant) {
+        const prev = lastMessage.content || '';
+        const combinedContent = prev === '' || prev === 'FAIL' ? incomingText : prev + incomingText;
 
-          // process IntermediateSteps
-          let processedIntermediateSteps = (message?.type === webSocketMessageTypes.systemIntermediateMessage)
-            ? processIntermediateMessage(msg.intermediateSteps || [], message, sessionStorage.getItem('intermediateStepOverride') === 'false' ? false : intermediateStepOverride)
-            : msg.intermediateSteps || [];
+        console.log('🟢 [ASSISTANT_CONTENT] Appending to existing assistant message:', {
+          previousContent: prev,
+          incomingText: incomingText,
+          combinedContent: combinedContent,
+          messageLength: combinedContent.length
+        });
 
-          if(message?.type === webSocketMessageTypes.systemInteractionMessage){
-            msg.humanInteractionMessages = msg.humanInteractionMessages || [];
-            msg.humanInteractionMessages.push(message);
-          }
-          if(message?.type === 'error') {
-            msg.errorMessages = msg.errorMessages || [];
-            msg.errorMessages.push(message);
-          }
+        updatedMessages = updatedMessages.map((msg, i) =>
+          i === updatedMessages.length - 1
+            ? { ...msg, content: combinedContent || 'FAIL', timestamp: Date.now() }
+            : msg
+        );
 
-          // update the assistant message with new content and processed intermediate steps
-          return {
-            ...msg,
-            content: updatedContent,
-            intermediateSteps: processedIntermediateSteps,
-            humanInteractionMessages: msg.humanInteractionMessages || [],
-            errorMessages: msg.errorMessages || [],
-            timestamp: Date.now() // Update timestamp to force re-render
-          };
-        }
-        return msg;
-      });
-    } else {
-      console.log('🔵 [WebSocket] Creating new assistant message');
-      // add the new message to the conversation as 'assistant' message
-      updatedMessages = [
-        ...(targetConversation?.messages || []),
-        {
-          role: 'assistant' as const,
-          id: message?.id,
-          parentId: message?.parent_id,
-          content: message?.content?.text || '',
-          intermediateSteps: (message?.type === webSocketMessageTypes.systemIntermediateMessage) ? [{...message, index: 0}] : [],
-          humanInteractionMessages: (message?.type === webSocketMessageTypes.systemInteractionMessage) ? [message] : [],
-          errorMessages: message?.type === 'error' ? [message] : [],
-          timestamp: Date.now()
-        },
-      ];
+        console.log('🔵 [ASSISTANT_CONTENT] After updating message in array:', {
+          updatedMessageContent: updatedMessages[updatedMessages.length - 1]?.content,
+          messageTimestamp: updatedMessages[updatedMessages.length - 1]?.timestamp
+        });
+      } else {
+        console.log('🟢 [ASSISTANT_CONTENT] Creating new assistant message:', {
+          content: incomingText,
+          contentLength: incomingText.length
+        });
+
+        updatedMessages = [
+          ...updatedMessages,
+          {
+            role: 'assistant' as const,
+            id: message.id,
+            parentId: message.parent_id,
+            content: incomingText || 'FAIL', // Use 'FAIL' during testing if no content
+            intermediateSteps: [],
+            humanInteractionMessages: [],
+            errorMessages: [],
+            timestamp: Date.now(),
+          },
+        ];
+      }
     }
 
-    // update the target conversation
-    let updatedTargetConversation = {
+    // ✅ Handle intermediate steps (if needed)
+    else if (message?.type === webSocketMessageTypes.systemIntermediateMessage) {
+      if (!isLastAssistant) {
+        updatedMessages = [
+          ...updatedMessages,
+          {
+            role: 'assistant' as const,
+            id: message.id,
+            parentId: message.parent_id,
+            content: 'FAIL',
+            intermediateSteps: [{ ...message, index: 0 }],
+            humanInteractionMessages: [],
+            errorMessages: [],
+            timestamp: Date.now(),
+          },
+        ];
+      } else {
+        // ✅ DEFENSIVE MERGE: never regress content to an older/stale value
+        const latestContent =
+          updatedMessages[updatedMessages.length - 1]?.content ||
+          lastMessage?.content || '';
+
+        updatedMessages = updatedMessages.map((msg, i) =>
+          i === updatedMessages.length - 1
+            ? {
+                ...msg,
+                // keep whatever the newest content is; don't overwrite with stale 'FAIL'
+                content: latestContent,
+                intermediateSteps: processIntermediateMessage(
+                  msg.intermediateSteps || [],
+                  { ...message, index: (msg.intermediateSteps?.length || 0) },
+                  sessionStorage.getItem('intermediateStepOverride') === 'false'
+                    ? false
+                    : intermediateStepOverride
+                ),
+                timestamp: Date.now(),
+              }
+            : msg
+        );
+      }
+    } else {
+      // Skip unknown or unsupported message types
+      return;
+    }
+
+    // ✅ Update selectedConversation and conversations
+    let updatedConversation = {
       ...targetConversation,
       messages: updatedMessages,
     };
@@ -419,61 +459,43 @@ export const Chat = () => {
     if (
       firstUserMessage &&
       firstUserMessage.content &&
-      updatedTargetConversation.name === 'New Conversation'
+      updatedConversation.name === 'New Conversation'
     ) {
-      updatedTargetConversation.name = firstUserMessage.content.substring(0, 30);
+      updatedConversation = {
+        ...updatedConversation,
+        name: firstUserMessage.content.substring(0, 30)
+      };
     }
-    
-    console.log('🔵 [WebSocket] Before conversations update:');
-    console.log('  - Current conversations length:', currentConversations.length);
-    console.log('  - Updated conversation ID:', updatedTargetConversation.id);
-    console.log('  - All conversation IDs before:', currentConversations.map(c => c.id));
-    
-    // Update the conversations array with the updated target conversation
-    const updatedConversations = currentConversations.map(
-      (conversation) => {
-        if (conversation.id === targetConversationId) {
-          console.log('  - 🟢 Found and updating conversation:', conversation.id);
-          return updatedTargetConversation;
-        }
-        return conversation;
-      },
+
+    const updatedConversations = currentConversations.map(c =>
+      c.id === updatedConversation.id ? updatedConversation : c
     );
 
-    console.log('🔵 [WebSocket] After conversations update:');
-    console.log('  - Updated conversations length:', updatedConversations.length);
-    console.log('  - All conversation IDs after:', updatedConversations.map(c => c.id));
-    
-    // Ensure we don't lose conversations - this should never happen now
-    if (updatedConversations.length !== currentConversations.length) {
-      console.error('🔴 [WebSocket] CRITICAL: Conversation count mismatch!', {
-        before: currentConversations.length,
-        after: updatedConversations.length,
-        updatedId: updatedTargetConversation?.id,
-        beforeIds: currentConversations.map(c => c.id),
-        afterIds: updatedConversations.map(c => c.id)
-      });
-    }
-    
-    // Update the conversations state
-    homeDispatch({
-      field: 'conversations',
-      value: updatedConversations,
+    console.log('🔵 [STATE_UPDATE] Updating conversations state with assistant content:', {
+      conversationId: updatedConversation.id,
+      messageCount: updatedConversation.messages.length,
+      lastMessageContent: updatedConversation.messages[updatedConversation.messages.length - 1]?.content,
+      lastMessageRole: updatedConversation.messages[updatedConversation.messages.length - 1]?.role
     });
 
-    // save the conversations to session storage
-    saveConversations(updatedConversations);
-    
-    // If the updated conversation is also the currently selected conversation, update selectedConversation
-    if (currentSelectedConversation && currentSelectedConversation.id === targetConversationId) {
-      console.log('🔵 [WebSocket] Updating selected conversation as well');
-      homeDispatch({
-        field: 'selectedConversation',
-        value: updatedTargetConversation,
-      });
-      // save the conversation to session storage
-      saveConversation(updatedTargetConversation);
+    // ✅ NEW: write-through to refs BEFORE dispatch to avoid stale reads in the next WS tick
+    conversationsRef.current = updatedConversations;
+    if (currentSelectedConversation?.id === updatedConversation.id) {
+      selectedConversationRef.current = updatedConversation;
     }
+
+    // Now dispatch (React state may update async, but our refs are already current)
+    homeDispatch({ field: 'conversations', value: updatedConversations });
+    saveConversations(updatedConversations);
+
+    if (currentSelectedConversation?.id === updatedConversation.id) {
+      console.log('🔵 [STATE_UPDATE] Also updating selectedConversation with content:', {
+        selectedConversationContent: updatedConversation.messages[updatedConversation.messages.length - 1]?.content
+      });
+      homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+      saveConversation(updatedConversation);
+    }
+
   };
 
 
@@ -520,13 +542,13 @@ export const Chat = () => {
           if (!webSocketConnectedRef?.current) {
             const connected = await connectWebSocket();
             if (!connected) {
-              console.log("WebSocket connection failed.");
+              // TODO EE console.log("WebSocket connection failed.");
               homeDispatch({ field: "loading", value: false });
               homeDispatch({ field: "messageIsStreaming", value: false });
               return;
             }
             else {
-              console.log("WebSocket connected successfully!, Resend the query");
+              // TODO EE console.log("WebSocket connected successfully!, Resend the query");
               handleSend(message, 1)
               return
             }
@@ -535,7 +557,7 @@ export const Chat = () => {
           toast.dismiss()
 
 
-          console.log('[WebSocket Fix] Using current conversations count:', conversationsRef.current.length);
+          // TODO EE console.log('[WebSocket Fix] Using current conversations count:', conversationsRef.current.length);
           saveConversation(updatedConversation);
           // Use conversationsRef.current to avoid stale closure that causes conversation wiping
           const updatedConversations: Conversation[] = conversationsRef.current.map(
@@ -546,7 +568,7 @@ export const Chat = () => {
               return conversation;
             },
           );
-          console.log('[WebSocket Fix] After update, conversations count:', updatedConversations.length);
+          // TODO EE console.log('[WebSocket Fix] After update, conversations count:', updatedConversations.length);
           // Removed fallback block that was wiping conversations
           homeDispatch({
             field: 'conversations',
@@ -1004,20 +1026,32 @@ export const Chat = () => {
           onScroll={handleScroll}
         >
           <ChatHeader webSocketModeRef={webSocketModeRef} />
-          {selectedConversation?.messages.map((message, index) => (
-            <MemoizedChatMessage
-              key={index}
-              message={message}
-              messageIndex={index}
-              onEdit={(editedMessage) => {
-                setCurrentMessage(editedMessage);
-                handleSend(
-                  editedMessage,
-                  selectedConversation?.messages.length - index,
-                );
-              }}
-            />
-          ))}
+          {selectedConversation?.messages.map((message, index) => {
+            // Debug: Log what React is rendering
+            if (message.role === 'assistant') {
+              console.log('🔵 [REACT_RENDER] Rendering assistant message:', {
+                index,
+                content: message.content,
+                contentLength: message.content?.length || 0,
+                timestamp: message.timestamp
+              });
+            }
+            
+            return (
+              <MemoizedChatMessage
+                key={`${message.timestamp || message.id || index}-${message.content?.length || 0}`}
+                message={message}
+                messageIndex={index}
+                onEdit={(editedMessage) => {
+                  setCurrentMessage(editedMessage);
+                  handleSend(
+                    editedMessage,
+                    selectedConversation?.messages.length - index,
+                  );
+                }}
+              />
+            );
+          })}
           {loading && <ChatLoader statusUpdateText={`Thinking...`} />}
           <div
             className="h-[162px] bg-white dark:bg-[#343541]"

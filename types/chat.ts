@@ -5,6 +5,8 @@ export interface Message {
   intermediateSteps?: any;
   humanInteractionMessages?: any;
   errorMessages?: any;
+  timestamp?: number;
+  parentId?: string;
 }
 
 export type Role = 'assistant' | 'user' | 'agent' | 'system';
