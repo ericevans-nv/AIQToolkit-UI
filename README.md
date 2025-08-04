@@ -125,6 +125,23 @@ Can you process my input and display the result for the given prompt: How are yo
 
 ![AIQ Toolkit Web UI HITL Prompt](public/screenshots/hitl_result.png)
 
+## Data Management
+
+### Import and Export
+The application includes built-in data management features to backup and restore your conversations, folders, and prompts.
+
+#### Export Data
+- **Location**: Click the "Export data" button in the sidebar settings (bottom left corner)
+- **Functionality**: Downloads all your conversations, folder organization, and saved prompts as a JSON file
+- **File format**: `chatbot_ui_history_MM-DD.json` (where MM-DD is the current month-day)
+
+#### Import Data
+- **Location**: Click the "Import data" button in the sidebar settings (bottom left corner) 
+- **Functionality**: Restore conversations, folders, and prompts from a previously exported JSON file
+- **File format**: Accepts `.json` files exported from this application
+- **Process**: Select your backup file → data is automatically loaded → page refreshes to show imported content
+> **Note**: Importing data will replace your current conversations and settings. Export your current data first if you want to keep it.
+
 ## API Integration
 
 ### Server Communication
