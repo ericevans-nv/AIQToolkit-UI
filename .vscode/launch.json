@@ -1,45 +1,45 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        // {
-        //     "name": "Attach to Chrome",
-        //     "port": 3000,
-        //     "request": "attach",
-        //     "type": "chrome",
-        //     "webRoot": "${workspaceFolder}"
-        // },
-        {
-            "name": "Debug1",
-            "type": "node-terminal",
-            "request": "launch",
-            "command": "npm run dev",
-            "cwd": "${workspaceFolder}",
-            "serverReadyAction": {
-                "pattern": "started server on .+, url: (https?://.+)",
-                "uriFormat": "%s",
-                "action": "debugWithChrome"
-            },
-            "debugStdLib": true
-        },
-        {
-            "name": "Debug2",
-            "type": "node-terminal",
-            "request": "launch",
-            "command": "NEXT_PRIVATE_TURBOPACK=true npm run dev",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "NODE_ENV": "development"
-            },
-            "serverReadyAction": {
-                "pattern": "started server on .+, url: (https?://.+)",
-                "uriFormat": "%s",
-                "action": "debugWithChrome"
-            },
-            "console": "integratedTerminal",
-            "outputCapture": "std"
-        }
-    ]
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    // {
+    //     "name": "Attach to Chrome",
+    //     "port": 3000,
+    //     "request": "attach",
+    //     "type": "chrome",
+    //     "webRoot": "${workspaceFolder}"
+    // },
+    {
+      "name": "Debug1",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}",
+      "serverReadyAction": {
+        "pattern": "started server on .+, url: (https?://.+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome"
+      },
+      "debugStdLib": true
+    },
+    {
+      "name": "Debug2",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "NEXT_PRIVATE_TURBOPACK=true npm run dev",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "serverReadyAction": {
+        "pattern": "started server on .+, url: (https?://.+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome"
+      },
+      "console": "integratedTerminal",
+      "outputCapture": "std"
+    }
+  ]
 }

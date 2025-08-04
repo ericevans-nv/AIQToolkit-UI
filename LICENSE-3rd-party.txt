@@ -1,4 +1,4 @@
-AIQ Toolkit-UI Third-Party Licenses
+NeMo Agent Toolkit UI Third-Party Licenses
 =================================
 
 This file contains third-party license information for software packages used in this project.

@@ -2,10 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export default function middleware(req: NextRequest) {
-
-   // Log the request
-   console.log('Request:', req);
-
+  // Log the request
+  console.log('Request:', req);
 
   // Skip middleware for static files and auth routes
   if (
@@ -24,7 +22,9 @@ export default function middleware(req: NextRequest) {
 
   if (!sessionCookie) {
     // Generate a new session ID for visitors without one
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = `session_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
 
     // Set the session cookie
     response.cookies.set('aiqtoolkit-session', sessionId, {
@@ -40,7 +40,6 @@ export default function middleware(req: NextRequest) {
       response.headers.set('x-session-id', sessionId);
     }
   } else {
-
     // Print session cookie
     console.log('Session cookie:', sessionCookie);
 

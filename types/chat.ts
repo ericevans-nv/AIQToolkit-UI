@@ -10,9 +10,9 @@ export interface Message {
 export type Role = 'assistant' | 'user' | 'agent' | 'system';
 
 export interface ChatBody {
-  chatCompletionURL?: string,
-  messages?: Message[],
-  additionalProps?: any
+  chatCompletionURL?: string;
+  messages?: Message[];
+  additionalProps?: any;
 }
 
 export interface Conversation {

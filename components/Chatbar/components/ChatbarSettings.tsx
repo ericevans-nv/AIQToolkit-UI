@@ -17,10 +17,7 @@ export const ChatbarSettings = () => {
   const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
 
   const {
-    state: {
-      lightMode,
-      conversations,
-    },
+    state: { lightMode, conversations },
     dispatch: homeDispatch,
   } = useContext(HomeContext);
 

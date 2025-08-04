@@ -1,16 +1,16 @@
 export const nextEndPoints = {
-    chat: 'api/chat',
+  chat: 'api/chat',
 };
 
 export const webSocketMessageTypes = {
-    userMessage: 'user_message',
-    userInteractionMessage: 'user_interaction_message',
-    systemResponseMessage: 'system_response_message',
-    systemIntermediateMessage: 'system_intermediate_message',
-    systemInteractionMessage: 'system_interaction_message',
-    oauthConsent: 'oauth_consent'
-}
+  userMessage: 'user_message',
+  userInteractionMessage: 'user_interaction_message',
+  systemResponseMessage: 'system_response_message',
+  systemIntermediateMessage: 'system_intermediate_message',
+  systemInteractionMessage: 'system_interaction_message',
+  oauthConsent: 'oauth_consent',
+};
 
 export const appConfig = {
-    fileUploadEnabled : false
-}
+  fileUploadEnabled: false,
+};

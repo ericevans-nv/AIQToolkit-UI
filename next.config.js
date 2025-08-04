@@ -14,7 +14,7 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: "5mb",
+      bodySizeLimit: '5mb',
     },
   },
   webpack(config, { isServer, dev }) {
@@ -26,8 +26,7 @@ const nextConfig = {
     return config;
   },
   async redirects() {
-    return [
-    ]
+    return [];
   },
 };
 

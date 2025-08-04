@@ -21,7 +21,6 @@ export const cleanSelectedConversation = (conversation: Conversation) => {
 };
 
 export const cleanConversationHistory = (history: any[]): Conversation[] => {
-
   if (!Array.isArray(history)) {
     console.warn('history is not an array. Returning an empty array.');
     return [];
