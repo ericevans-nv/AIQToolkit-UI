@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { env } from 'next-runtime-env'
+import { Message } from '@/types/chat';
 export const getInitials = (fullName = '') => {
     if (!fullName) {
         return "";
@@ -110,7 +111,7 @@ export const isInsideIframe = () => {
     }
 };
 
-export const fetchLastMessage = ({messages = [], role = 'user'}) => {
+export const fetchLastMessage = ({messages = [], role = 'user'}: {messages?: Message[], role?: string}): Message | null => {
     // Loop from the end to find the last message with the role "user"
     for (let i = messages.length - 1; i >= 0; i--) {
         if (messages[i]?.role === role) {
