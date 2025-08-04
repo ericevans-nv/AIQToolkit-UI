@@ -1,9 +1,9 @@
-# AIQ Toolkit - UI
+# NeMo Agent Toolkit - UI
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![AIQ Toolkit](https://img.shields.io/badge/AIQToolkit-Frontend-green)](https://github.com/NVIDIA/AIQToolkit/tree/main)
+[![NeMo Agent Toolkit](https://img.shields.io/badge/NeMo%20Agent%20Toolkit-Frontend-green)](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
 
-This is the official frontend user interface component for [AIQ Toolkit](https://github.com/NVIDIA/AIQToolkit/tree/main), an open-source library for building AI agents and workflows.
+This is the official frontend user interface component for [NeMo Agent Toolkit](https://github.com/NVIDIA/NeMo-Agent-Toolkit), an open-source library for building AI agents and workflows.
 
 This project builds upon the work of:
 - [chatbot-ui](https://github.com/mckaywrigley/chatbot-ui) by Mckay Wrigley
@@ -20,7 +20,7 @@ This project builds upon the work of:
 ## Getting Started
 
 ### Prerequisites
-- [AIQ Toolkit](https://github.com/NVIDIA/AIQToolkit/tree/main) installed and configured
+- [NeMo Agent Toolkit](https://github.com/NVIDIA/NeMo-Agent-Toolkit) installed and configured
 - Git
 - Node.js (v18 or higher)
 - npm or Docker
@@ -29,8 +29,8 @@ This project builds upon the work of:
 
 Clone the repository:
 ```bash
-git clone git@github.com:NVIDIA/AIQToolkit.git
-cd AIQToolkit
+git clone git@github.com:NVIDIA/NeMo-Agent-Toolkit-UI.git
+cd NeMo-Agent-Toolkit-UI
 ```
 
 Install dependencies:
@@ -49,22 +49,22 @@ The application will be available at `http://localhost:3000`
 #### Docker Deployment
 ```bash
 # Build the Docker image
-docker build -t aiqtoolkit-ui .
+docker build -t nemo-agent-toolkit-ui .
 
 # Run the container with environment variables from .env
 # Ensure the .env file is present before running this command.
 # Skip --env-file .env if no overrides are needed.
-docker run --env-file .env -p 3000:3000 aiqtoolkit-ui
+docker run --env-file .env -p 3000:3000 nemo-agent-toolkit-ui
 ```
 
-![AIQ Toolkit Web User Interface](public/screenshots/ui_home_page.png)
+![NeMo Agent Toolkit Web User Interface](public/screenshots/ui_home_page.png)
 
 ## Configuration
 
 ### HTTP API Connection
 Settings can be configured by selecting the `Settings` icon located on the bottom left corner of the home page.
 
-![AIQ Toolkit Web UI Settings](public/screenshots/ui_generate_example_settings.png)
+![NeMo Agent Toolkit Web UI Settings](public/screenshots/ui_generate_example_settings.png)
 
 ### Settings Options
 NOTE: Most of the time, you will want to select /chat/stream for intermediate results streaming.
@@ -75,16 +75,16 @@ NOTE: Most of the time, you will want to select /chat/stream for intermediate re
   - /generate/stream - Streaming response generation
   - /chat - Single response chat completion
   - /chat/stream - Streaming chat completion
-- `WebSocket URL for Completion`: WebSocket URL to connect to running AIQ Toolkit server
+- `WebSocket URL for Completion`: WebSocket URL to connect to running NeMo Agent Toolkit server
 - `WebSocket Schema`: Workflow schema type over WebSocket connection
 
 ## Usage Examples
 
-### Simple Calculator Example
+### Getting Started Example
 
 #### Setup and Configuration
-1. Set up [AIQ Toolkit Get Started ](https://github.com/NVIDIA/AIQToolkit/blob/main/docs/source/intro/get-started.md)
-2. Start workflow by following the [Simple Calculator Example](https://github.com/NVIDIA/AIQToolkit/blob/main/examples/simple_calculator/README.md)
+1. Set up [NeMo Agent Toolkit](https://docs.nvidia.com/aiqtoolkit/latest/quick-start/installing.html) following the getting started guide
+2. Start workflow by following the [Getting Started Examples](https://github.com/NVIDIA/NeMo-Agent-Toolkit/blob/develop/examples/getting_started/simple_calculator/README.md)
 ```bash
 aiq serve --config_file=examples/simple_calculator/configs/config.yml
 ```
@@ -95,21 +95,21 @@ Interact with the chat interface by prompting the agent with the message:
 Is 4 + 4 greater than the current hour of the day?
 ```
 
-![AIQ Toolkit Web UI Workflow Result](public/screenshots/ui_generate_example.png)
+![NeMo Agent Toolkit Web UI Workflow Result](public/screenshots/ui_generate_example.png)
 
 ### Human In The Loop (HITL) Example
 
 #### Setup and Configuration
-1. Set up [AIQ Toolkit](https://github.com/NVIDIA/AIQ Toolkit/blob/main/docs/source/1_intro/getting_started.md) 
-2. Start workflow by following the [HITL Example](https://github.com/NVIDIA/AIQ Toolkit/blob/main/examples/simple_human_in_the_loop/README.md)
+1. Set up [NeMo Agent Toolkit](https://docs.nvidia.com/aiqtoolkit/latest/quick-start/installing.html) following the getting started guide 
+2. Start workflow by following the [HITL Example](https://github.com/NVIDIA/NeMo-Agent-Toolkit/blob/develop/examples/HITL/simple_calculator_hitl/README.md)
 ```bash
-aiq serve --config_file=examples/simple_human_in_the_loop/configs/config.yml
+aiq serve --config_file=examples/HITL/simple_calculator_hitl/configs/config-hitl.yml
 ```
 
 #### Configuring HITL Settings
 Enable WebSocket mode in the settings panel for bidirectional real-time communication between the client and server.
 
-![AIQ Toolkit Web UI HITL Settings](public/screenshots/hitl_settings.png)
+![NeMo Agent Toolkit Web UI HITL Settings](public/screenshots/hitl_settings.png)
 
 #### Example Conversation
 1. Send the following prompt:
@@ -119,11 +119,11 @@ Can you process my input and display the result for the given prompt: How are yo
 
 2. Enter your response when prompted:
 
-![AIQ Toolkit Web UI HITL Prompt](public/screenshots/hitl_prompt.png)
+![NeMo Agent Toolkit Web UI HITL Prompt](public/screenshots/hitl_prompt.png)
 
 3. Monitor the result:
 
-![AIQ Toolkit Web UI HITL Prompt](public/screenshots/hitl_result.png)
+![NeMo Agent Toolkit Web UI HITL Result](public/screenshots/hitl_prompt.png)
 
 ## Data Management
 
@@ -145,7 +145,7 @@ The application includes built-in data management features to backup and restore
 ## API Integration
 
 ### Server Communication
-The UI supports both HTTP requests (OpenAI compatible) and WebSocket connections for server communication. For detailed information about WebSocket messaging integration, please refer to the [WebSocket Documentation](https://github.com/NVIDIA/AIQToolkit/blob/main/docs/source/references/websockets.md) in the AIQ Toolkit documentation.
+The UI supports both HTTP requests (OpenAI Chat compatible) and WebSocket connections for server communication. For detailed information about WebSocket messaging integration, please refer to the [WebSocket Documentation](https://docs.nvidia.com/aiqtoolkit/latest/reference/websockets.html) in the NeMo Agent Toolkit documentation.
 
 
 
