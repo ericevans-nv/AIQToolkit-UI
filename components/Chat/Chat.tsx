@@ -19,9 +19,20 @@ import {
 import {
   fetchLastMessage,
   processIntermediateMessage,
+  validateWebSocketMessage,
+  isSystemResponseMessage,
+  isSystemIntermediateMessage,
+  isSystemInteractionMessage,
+  isErrorMessage,
+  extractOAuthUrl,
+  shouldAppendResponseContent,
+  createAssistantMessage,
+  updateConversationTitle,
+  appendToAssistantContent,
+  shouldRenderAssistantMessage,
 } from '@/utils/app/helper';
 import { throttle } from '@/utils/data/throttle';
-import { ChatBody, Conversation, Message } from '@/types/chat';
+import { ChatBody, Conversation, Message, WebSocketMessage } from '@/types/chat';
 import HomeContext from '@/pages/api/home/home.context';
 import { ChatInput } from './ChatInput';
 import { ChatLoader } from './ChatLoader';
@@ -249,212 +260,226 @@ export const Chat = () => {
   }, [intermediateStepOverride]);
 
 
-  const handleWebSocketMessage = (message: any) => {
-    // End loading indicators as messages arrive
-    homeDispatch({ field: 'loading', value: false });
-    if (message?.status === 'complete') {
-      setTimeout(() => {
-        homeDispatch({ field: 'messageIsStreaming', value: false });
-      }, 200);
-    }
-
-    // Human-in-the-loop flow (OAuth consent shortcut preserved)
-    if (message?.type === webSocketMessageTypes.systemInteractionMessage) {
-      if (message?.content?.input_type === 'oauth_consent') {
-        const oauthUrl =
-          message?.content?.oauth_url ||
-          message?.content?.redirect_url ||
-          message?.content?.text;
-
-        if (oauthUrl) {
-          const popup = window.open(
-            oauthUrl,
-            'oauth-popup',
-            'width=600,height=700,scrollbars=yes,resizable=yes'
-          );
-          const handleOAuthComplete = (event: MessageEvent) => {
-            if (popup && !popup.closed) popup.close();
-            window.removeEventListener('message', handleOAuthComplete);
-          };
-          window.addEventListener('message', handleOAuthComplete);
-        }
-        return;
-      }
-      openModal(message);
-    }
-
-    // Respect intermediate-steps toggle
-    if (
-      sessionStorage.getItem('enableIntermediateSteps') === 'false' &&
-      message?.type === webSocketMessageTypes.systemIntermediateMessage
-    ) {
-      return;
-    }
-
-    // Skip creating/updating assistant text for system_response:complete
-    if (
-      message?.type === webSocketMessageTypes.systemResponseMessage &&
-      message?.status === 'complete'
-    ) {
-      return;
-    }
-
-    const targetConversationId = message?.conversation_id;
-    if (!targetConversationId) return;
-
-    const currentConversations = conversationsRef.current;
-    const currentSelectedConversation = selectedConversationRef.current;
-    const targetConversation = currentConversations.find(
-      (c) => c.id === targetConversationId
-    );
-    if (!targetConversation) return;
-
-    const isInProgress =
-      message?.type === webSocketMessageTypes.systemResponseMessage &&
-      message?.status === 'in_progress';
-
-    const incomingText = (message?.content?.text || '').trim();
-    const shouldAppendContent = isInProgress && incomingText !== '';
-
-    let updatedMessages = targetConversation.messages;
-    const lastMessage = updatedMessages.at(-1);
-    const isLastAssistant = lastMessage?.role === 'assistant';
-
-    // 1) Append or create assistant message only for system_response:in_progress with non-empty text
-    if (shouldAppendContent) {
-      if (isLastAssistant) {
-        const prev = lastMessage.content || '';
-        const combinedContent = prev === '' ? incomingText : prev + incomingText;
-
-        updatedMessages = updatedMessages.map((m, idx) =>
-          idx === updatedMessages.length - 1
-            ? { ...m, content: combinedContent, timestamp: Date.now() }
-            : m
+  /**
+   * Handles OAuth consent flow by opening popup window
+   */
+  const handleOAuthConsent = (message: WebSocketMessage) => {
+    if (!isSystemInteractionMessage(message)) return false;
+    
+    if (message.content?.input_type === 'oauth_consent') {
+      const oauthUrl = extractOAuthUrl(message);
+      if (oauthUrl) {
+        const popup = window.open(
+          oauthUrl,
+          'oauth-popup',
+          'width=600,height=700,scrollbars=yes,resizable=yes'
         );
-      } else {
-        updatedMessages = [
-          ...updatedMessages,
-          {
-            role: 'assistant' as const,
-            id: message.id,
-            parentId: message.parent_id,
-            content: incomingText,
-            intermediateSteps: [],
-            humanInteractionMessages: [],
-            errorMessages: [],
-            timestamp: Date.now(),
-          },
-        ];
+        const handleOAuthComplete = (event: MessageEvent) => {
+          if (popup && !popup.closed) popup.close();
+          window.removeEventListener('message', handleOAuthComplete);
+        };
+        window.addEventListener('message', handleOAuthComplete);
       }
+      return true;
     }
-    // 2) Handle intermediate steps (do not change content here)
-    else if (message?.type === webSocketMessageTypes.systemIntermediateMessage) {
-      if (!isLastAssistant) {
-        updatedMessages = [
-          ...updatedMessages,
-          {
-            role: 'assistant' as const,
-            id: message.id,
-            parentId: message.parent_id,
-            content: '', // no placeholder; stays empty until first in_progress chunk
-            intermediateSteps: [{ ...message, index: 0 }],
-            humanInteractionMessages: [],
-            errorMessages: [],
-            timestamp: Date.now(),
-          },
-        ];
-      } else {
-        const lastIdx = updatedMessages.length - 1;
-        const lastSteps = updatedMessages[lastIdx]?.intermediateSteps || [];
-        const mergedSteps = processIntermediateMessage(
-          lastSteps,
-          { ...message, index: lastSteps.length || 0 },
-          sessionStorage.getItem('intermediateStepOverride') === 'false'
-            ? false
-            : intermediateStepOverride
-        );
+    return false;
+  };
 
-        updatedMessages = updatedMessages.map((m, idx) =>
-          idx === lastIdx
-            ? {
-                ...m,
-                // keep existing content unchanged
-                content: m.content || '',
-                intermediateSteps: mergedSteps,
-                timestamp: Date.now(),
-              }
-            : m
-        );
-      }
-    }
-    // 3) Errors: attach to the last assistant if present; otherwise create one (no content change)
-    else if (message?.type === 'error') {
-      if (isLastAssistant) {
-        updatedMessages = updatedMessages.map((m, idx) =>
-          idx === updatedMessages.length - 1
-            ? {
-                ...m,
-                errorMessages: [...(m.errorMessages || []), message],
-                timestamp: Date.now(),
-              }
-            : m
-        );
-      } else {
-        updatedMessages = [
-          ...updatedMessages,
-          {
-            role: 'assistant' as const,
-            id: message.id,
-            parentId: message.parent_id,
-            content: '',
-            intermediateSteps: [],
-            humanInteractionMessages: [],
-            errorMessages: [message],
-            timestamp: Date.now(),
-          },
-        ];
-      }
-    } else {
-      // Unknown / unsupported type: ignore
-      return;
-    }
-
-    // Update conversation
-    let updatedConversation: Conversation = {
-      ...targetConversation,
-      messages: updatedMessages,
-    };
-
-    // Title fix for "New Conversation"
-    const firstUserMessage = updatedMessages.find((m) => m.role === 'user');
-    if (
-      firstUserMessage &&
-      firstUserMessage.content &&
-      updatedConversation.name === 'New Conversation'
-    ) {
-      updatedConversation = {
-        ...updatedConversation,
-        name: firstUserMessage.content.substring(0, 30),
-      };
-    }
-
+  /**
+   * Updates refs immediately before React dispatch to prevent stale reads
+   */
+  const updateRefsAndDispatch = (
+    updatedConversations: Conversation[],
+    updatedConversation: Conversation,
+    currentSelectedConversation: Conversation | null | undefined
+  ) => {
     // Write-through to refs before dispatch to avoid stale reads on next WS tick
-    const nextConversations = currentConversations.map((c) =>
-      c.id === updatedConversation.id ? updatedConversation : c
-    );
-    conversationsRef.current = nextConversations;
+    conversationsRef.current = updatedConversations;
     if (currentSelectedConversation?.id === updatedConversation.id) {
       selectedConversationRef.current = updatedConversation;
     }
 
     // Dispatch and persist
-    homeDispatch({ field: 'conversations', value: nextConversations });
-    saveConversations(nextConversations);
+    homeDispatch({ field: 'conversations', value: updatedConversations });
+    saveConversations(updatedConversations);
 
     if (currentSelectedConversation?.id === updatedConversation.id) {
       homeDispatch({ field: 'selectedConversation', value: updatedConversation });
       saveConversation(updatedConversation);
     }
+  };
+
+  /**
+   * Processes system response messages for content updates
+   * Only appends content for in_progress status with non-empty text
+   */
+  const processSystemResponseMessage = (
+    message: WebSocketMessage,
+    messages: Message[]
+  ): Message[] => {
+    if (!isSystemResponseMessage(message) || !shouldAppendResponseContent(message)) {
+      return messages;
+    }
+
+    const incomingText = message.content?.text?.trim() || '';
+    const lastMessage = messages.at(-1);
+    const isLastAssistant = lastMessage?.role === 'assistant';
+
+    if (isLastAssistant) {
+      // Append to existing assistant message
+      const combinedContent = appendToAssistantContent(lastMessage.content || '', incomingText);
+      return messages.map((m, idx) =>
+        idx === messages.length - 1
+          ? { ...m, content: combinedContent, timestamp: Date.now() }
+          : m
+      );
+    } else {
+      // Create new assistant message
+      return [
+        ...messages,
+        createAssistantMessage(message.id, message.parent_id, incomingText),
+      ];
+    }
+  };
+
+  /**
+   * Processes intermediate step messages without modifying content
+   */
+  const processIntermediateStepMessage = (
+    message: WebSocketMessage,
+    messages: Message[]
+  ): Message[] => {
+    if (!isSystemIntermediateMessage(message)) return messages;
+
+    const lastMessage = messages.at(-1);
+    const isLastAssistant = lastMessage?.role === 'assistant';
+
+    if (!isLastAssistant) {
+      // Create new assistant message with empty content for intermediate steps
+      return [
+        ...messages,
+        createAssistantMessage(message.id, message.parent_id, '', [{ ...message, index: 0 }]),
+      ];
+    } else {
+      // Update intermediate steps on existing assistant message
+      const lastIdx = messages.length - 1;
+      const lastSteps = messages[lastIdx]?.intermediateSteps || [];
+      const mergedSteps = processIntermediateMessage(
+        lastSteps,
+        { ...message, index: lastSteps.length || 0 },
+        sessionStorage.getItem('intermediateStepOverride') === 'false'
+          ? false
+          : intermediateStepOverride
+      );
+
+      return messages.map((m, idx) =>
+        idx === lastIdx
+          ? {
+              ...m,
+              content: m.content || '', // Preserve existing content
+              intermediateSteps: mergedSteps,
+              timestamp: Date.now(),
+            }
+          : m
+      );
+    }
+  };
+
+  /**
+   * Processes error messages by attaching them to assistant messages
+   */
+  const processErrorMessage = (
+    message: WebSocketMessage,
+    messages: Message[]
+  ): Message[] => {
+    if (!isErrorMessage(message)) return messages;
+
+    const lastMessage = messages.at(-1);
+    const isLastAssistant = lastMessage?.role === 'assistant';
+
+    if (isLastAssistant) {
+      // Attach error to existing assistant message
+      return messages.map((m, idx) =>
+        idx === messages.length - 1
+          ? {
+              ...m,
+              errorMessages: [...(m.errorMessages || []), message],
+              timestamp: Date.now(),
+            }
+          : m
+      );
+    } else {
+      // Create new assistant message for error
+      return [
+        ...messages,
+        createAssistantMessage(message.id, message.parent_id, '', [], [], [message]),
+      ];
+    }
+  };
+
+  /**
+   * Main WebSocket message handler
+   * Processes different message types and updates conversation state
+   */
+  const handleWebSocketMessage = (message: any) => {
+    // Validate message structure early
+    if (!validateWebSocketMessage(message)) return;
+
+    // End loading indicators as messages arrive
+    homeDispatch({ field: 'loading', value: false });
+    if (message.status === 'complete') {
+      setTimeout(() => {
+        homeDispatch({ field: 'messageIsStreaming', value: false });
+      }, 200);
+    }
+
+    // Handle human-in-the-loop interactions
+    if (isSystemInteractionMessage(message)) {
+      if (handleOAuthConsent(message)) return;
+      openModal(message);
+      return;
+    }
+
+    // Respect intermediate-steps toggle
+    if (
+      sessionStorage.getItem('enableIntermediateSteps') === 'false' &&
+      isSystemIntermediateMessage(message)
+    ) {
+      return;
+    }
+
+    // Skip creating/updating assistant text for system_response:complete
+    if (isSystemResponseMessage(message) && message.status === 'complete') {
+      return;
+    }
+
+    // Find target conversation
+    const currentConversations = conversationsRef.current;
+    const currentSelectedConversation = selectedConversationRef.current;
+    const targetConversation = currentConversations.find(
+      (c) => c.id === message.conversation_id
+    );
+    if (!targetConversation) return;
+
+    // Process message based on type
+    let updatedMessages = targetConversation.messages;
+    updatedMessages = processSystemResponseMessage(message, updatedMessages);
+    updatedMessages = processIntermediateStepMessage(message, updatedMessages);
+    updatedMessages = processErrorMessage(message, updatedMessages);
+
+    // Update conversation with new messages and title
+    const updatedConversation = updateConversationTitle({
+      ...targetConversation,
+      messages: updatedMessages,
+    });
+
+    // Update conversations array
+    const updatedConversations = currentConversations.map((c) =>
+      c.id === updatedConversation.id ? updatedConversation : c
+    );
+
+    // Update state and persistence
+    updateRefsAndDispatch(updatedConversations, updatedConversation, currentSelectedConversation);
   };
 
 
@@ -793,7 +818,7 @@ export const Chat = () => {
             };
             homeDispatch({
               field: 'selectedConversation',
-              value: updateConversation,
+              value: updatedConversation,
             });
             saveConversation(updatedConversation);
             const updatedConversations: Conversation[] = conversations.map(
@@ -980,12 +1005,8 @@ export const Chat = () => {
         >
           <ChatHeader webSocketModeRef={webSocketModeRef} />
           {selectedConversation?.messages.map((message, index) => {
-            const isAssistant = message.role === 'assistant';
-            const hasText = !!message.content?.trim();
-            const hasSteps = !!(message.intermediateSteps && message.intermediateSteps.length > 0);
-
-            if (isAssistant && !hasText && !hasSteps) {
-              return null; // hide empty assistant placeholder
+            if (!shouldRenderAssistantMessage(message)) {
+              return null; // Hide empty assistant messages
             }
 
             return (

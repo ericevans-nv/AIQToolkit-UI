@@ -23,3 +23,48 @@ export interface Conversation {
   messages: Message[];
   folderId: string | null;
 }
+
+// WebSocket Message Types
+export interface WebSocketMessageBase {
+  id?: string;
+  conversation_id?: string;
+  parent_id?: string;
+  timestamp?: string;
+  status?: string;
+}
+
+export interface SystemResponseMessage extends WebSocketMessageBase {
+  type: 'system_response_message';
+  status: 'in_progress' | 'complete';
+  content?: {
+    text?: string;
+  };
+}
+
+export interface SystemIntermediateMessage extends WebSocketMessageBase {
+  type: 'system_intermediate_message';
+  status?: string;
+  content?: any;
+  index?: number;
+}
+
+export interface SystemInteractionMessage extends WebSocketMessageBase {
+  type: 'system_interaction_message';
+  content?: {
+    input_type?: string;
+    oauth_url?: string;
+    redirect_url?: string;
+    text?: string;
+  };
+}
+
+export interface ErrorMessage extends WebSocketMessageBase {
+  type: 'error';
+  content?: any;
+}
+
+export type WebSocketMessage = 
+  | SystemResponseMessage 
+  | SystemIntermediateMessage 
+  | SystemInteractionMessage 
+  | ErrorMessage;

@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { env } from 'next-runtime-env'
-import { Message } from '@/types/chat';
+import { Message, Conversation, WebSocketMessage, SystemResponseMessage, SystemIntermediateMessage, SystemInteractionMessage, ErrorMessage } from '@/types/chat';
 export const getInitials = (fullName = '') => {
     if (!fullName) {
         return "";
@@ -14,6 +14,11 @@ export const compressImage = (base64: string, mimeType: string | undefined, shou
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
+
+    if (!ctx) {
+        callback(base64);
+        return;
+    }
 
     img.onload = () => {
         let width = img.width;
@@ -78,10 +83,10 @@ export const getURLQueryParam = ({ param = '' }) => {
     } else {
         // Get all query params safely
         const paramsObject = Object.create(null); // Prevent prototype pollution
-        for (const [key, value] of urlParams?.entries()) {
-            if (Object.prototype.hasOwnProperty.call(paramsObject, key)) continue; // Extra safety check
+        urlParams.forEach((value, key) => {
+            if (Object.prototype.hasOwnProperty.call(paramsObject, key)) return; // Extra safety check
             paramsObject[key] = value;
-        }
+        });
         return paramsObject;
     }
 };
@@ -121,10 +126,10 @@ export const fetchLastMessage = ({messages = [], role = 'user'}: {messages?: Mes
     return null;  // Return null if no user message is found
 }
 
-export const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 interface IntermediateStep {
-    id: string;
+    id?: string;
     parent_id?: string;
     index?: number;
     content?: any;
@@ -139,7 +144,6 @@ export const processIntermediateMessage = (
 ): IntermediateStep[] => {
 
     if (!newMessage.id) {
-        console.log('Skipping message processing - no message ID provided');
         return existingSteps;
     }
 
@@ -208,11 +212,6 @@ export const processIntermediateMessage = (
         return existingSteps;
 
     } catch (error) {
-        console.log('Error in processIntermediateMessage:', {
-            error,
-            messageId: newMessage.id,
-            parentId: newMessage.parent_id
-        });
         return existingSteps;
     }
 };
@@ -228,7 +227,6 @@ export const escapeHtml = (str: string): string => {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
     } catch (error) {
-        console.error('Error in escapeHtml:', error);
         return ''; // Return an empty string in case of error
     }
 };
@@ -254,7 +252,6 @@ export const convertBackticksToPreCode = (markdown = '') => {
 
         return markdown;
     } catch (error) {
-        console.error('Error in convertBackticksToPreCode:', error);
         return markdown;
     }
 };
@@ -282,7 +279,6 @@ export const generateContentIntermediate = (intermediateSteps: IntermediateStep[
                 return details;
             }).join('');
         } catch (error) {
-            console.error('error in generateDetails:', error);
             return ''; // Return an empty string in case of error
         }
     };
@@ -301,7 +297,6 @@ export const generateContentIntermediate = (intermediateSteps: IntermediateStep[
         }
         return intermediateContent;
     } catch (error) {
-        console.error('error in generateIntermediateMarkdown:', error);
         return '';
     }
 };
@@ -330,38 +325,122 @@ export const replaceMalformedHTMLVideos = (str = '') => {
 
 export const fixMalformedHtml = (content = '') => {
     try {
-
         let fixed = replaceMalformedHTMLImages(content);
         fixed = replaceMalformedHTMLVideos(fixed);
         fixed = replaceMalformedMarkdownImages(fixed);
         return fixed;
-
-        // Sanitize content
-        // let sanitizedContent = DOMPurify.sanitize(content);
-
-        // // Fallback for empty or fully stripped content
-        // if (!sanitizedContent) {
-        //   return sanitizedContent = `<img src="loading" alt="loading" style="max-width: 100%; height: 100%;"/>`;
-        // }
-
-        // const fixed = replaceMalformedMarkdownImages(sanitizedContent);
-        // return fixed;
-
-        // let dirtyHtml = marked(content);
-        // // remove <p> and </p> tags to reveal malformed img or other html tags
-        // dirtyHtml = dirtyHtml.replace(/<p>/g, "\n");
-        // dirtyHtml = dirtyHtml.replace(/<\/p>/g, "");
-        // console.log(dirtyHtml);
-        // const cleanHtml = DOMPurify.sanitize(dirtyHtml);
-        // if(!cleanHtml) {
-        //   return `<img src="loading" alt="loading" style="max-width: 100%; height: 100%;"/>`
-        // }
-        // return sanitizedContent;
     } 
     catch (e) {
-        console.log("error - sanitizing content", e);
         return content; // Return original if fixing fails
     }
+};
+
+// ===== WebSocket Message Utilities =====
+
+/**
+ * Type guards for WebSocket messages
+ */
+export const isSystemResponseMessage = (message: any): message is SystemResponseMessage => {
+    return message?.type === 'system_response_message';
+};
+
+export const isSystemIntermediateMessage = (message: any): message is SystemIntermediateMessage => {
+    return message?.type === 'system_intermediate_message';
+};
+
+export const isSystemInteractionMessage = (message: any): message is SystemInteractionMessage => {
+    return message?.type === 'system_interaction_message';
+};
+
+export const isErrorMessage = (message: any): message is ErrorMessage => {
+    return message?.type === 'error';
+};
+
+/**
+ * Validates that a WebSocket message has required fields
+ */
+export const validateWebSocketMessage = (message: any): message is WebSocketMessage => {
+    return message && 
+           typeof message === 'object' && 
+           message.type && 
+           message.conversation_id;
+};
+
+/**
+ * Extracts OAuth URL from interaction message
+ */
+export const extractOAuthUrl = (message: SystemInteractionMessage): string | null => {
+    const content = message.content;
+    return content?.oauth_url || content?.redirect_url || content?.text || null;
+};
+
+/**
+ * Determines if a system response message should append content
+ * Only append for in_progress status with non-empty text
+ */
+export const shouldAppendResponseContent = (message: SystemResponseMessage): boolean => {
+    return message.status === 'in_progress' && 
+           !!message.content?.text?.trim();
+};
+
+/**
+ * Creates a new assistant message from WebSocket data
+ */
+export const createAssistantMessage = (
+    id: string | undefined,
+    parentId: string | undefined,
+    content: string,
+    intermediateSteps: any[] = [],
+    humanInteractionMessages: any[] = [],
+    errorMessages: any[] = []
+): Message => {
+    return {
+        role: 'assistant' as const,
+        id,
+        parentId,
+        content,
+        intermediateSteps,
+        humanInteractionMessages,
+        errorMessages,
+        timestamp: Date.now(),
+    };
+};
+
+/**
+ * Updates conversation title from first user message if still default
+ */
+export const updateConversationTitle = (conversation: Conversation): Conversation => {
+    const firstUserMessage = conversation.messages.find((m) => m.role === 'user');
+    
+    if (firstUserMessage?.content && conversation.name === 'New Conversation') {
+        return {
+            ...conversation,
+            name: firstUserMessage.content.substring(0, 30),
+        };
+    }
+    
+    return conversation;
+};
+
+/**
+ * Safely appends content to assistant message, handling empty content replacement
+ */
+export const appendToAssistantContent = (
+    existingContent: string,
+    incomingText: string
+): string => {
+    // Replace empty content entirely, otherwise append
+    return existingContent === '' ? incomingText : existingContent + incomingText;
+};
+
+/**
+ * Checks if an assistant message should be rendered (has content or intermediate steps)
+ */
+export const shouldRenderAssistantMessage = (message: Message): boolean => {
+    const hasText = !!message.content?.trim();
+    const hasSteps = !!(message.intermediateSteps && message.intermediateSteps.length > 0);
+    
+    return message.role !== 'assistant' || hasText || hasSteps;
 };
 
 
