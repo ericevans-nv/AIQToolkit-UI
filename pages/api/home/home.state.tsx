@@ -1,6 +1,7 @@
 import { Conversation, Message } from '@/types/chat';
 import { FolderInterface } from '@/types/folder';
 import { t } from 'i18next';
+import { env } from 'next-runtime-env'
 
 export interface HomeInitialState {
   loading: boolean;
@@ -40,14 +41,14 @@ export const initialState: HomeInitialState = {
   currentFolder: undefined,
   messageError: false,
   searchTerm: '',
-  chatHistory: process?.env?.NEXT_PUBLIC_CHAT_HISTORY_DEFAULT_ON === 'true' || false,
-  chatCompletionURL: process?.env?.NEXT_PUBLIC_HTTP_CHAT_COMPLETION_URL || 'http://127.0.0.1:8000/chat/stream',
-  webSocketMode: process?.env?.NEXT_PUBLIC_WEB_SOCKET_DEFAULT_ON === 'true' || false,
+  chatHistory: env('NEXT_PUBLIC_CHAT_HISTORY_DEFAULT_ON') === 'true' || process?.env?.NEXT_PUBLIC_CHAT_HISTORY_DEFAULT_ON === 'true' ? true : false,
+  chatCompletionURL: env('NEXT_PUBLIC_HTTP_CHAT_COMPLETION_URL') || process?.env?.NEXT_PUBLIC_HTTP_CHAT_COMPLETION_URL || 'http://127.0.0.1:8000/chat/stream',
+  webSocketMode: env('NEXT_PUBLIC_WEB_SOCKET_DEFAULT_ON') === 'true' || process?.env?.NEXT_PUBLIC_WEB_SOCKET_DEFAULT_ON === 'true' ? true : false,
   webSocketConnected: false,
-  webSocketURL: process?.env?.NEXT_PUBLIC_WEBSOCKET_CHAT_COMPLETION_URL || 'ws://127.0.0.1:8000/websocket',
+  webSocketURL: env('NEXT_PUBLIC_WEBSOCKET_CHAT_COMPLETION_URL') || process?.env?.NEXT_PUBLIC_WEBSOCKET_CHAT_COMPLETION_URL || 'ws://127.0.0.1:8000/websocket',
   webSocketSchema: 'chat_stream',
   webSocketSchemas: ['chat_stream', 'chat', 'generate_stream', 'generate'],
-  enableIntermediateSteps: process?.env?.NEXT_PUBLIC_ENABLE_INTERMEDIATE_STEPS ? process.env.NEXT_PUBLIC_ENABLE_INTERMEDIATE_STEPS === 'true' : true,
+  enableIntermediateSteps: env('NEXT_PUBLIC_ENABLE_INTERMEDIATE_STEPS') === 'true' || process?.env?.NEXT_PUBLIC_ENABLE_INTERMEDIATE_STEPS === 'true' ? true : false,
   expandIntermediateSteps: false,
   intermediateStepOverride: true,
   autoScroll: true,

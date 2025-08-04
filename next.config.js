@@ -1,4 +1,9 @@
+const { configureRuntimeEnv } = require('next-runtime-env/build/configure');
+
 const nextConfig = {
+  env: {
+    ...configureRuntimeEnv(),
+  },
   output: 'standalone',
   typescript: {
     // !! WARN !!
