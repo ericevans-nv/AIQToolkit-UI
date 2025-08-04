@@ -413,6 +413,16 @@ export const Chat = () => {
       ...targetConversation,
       messages: updatedMessages,
     };
+
+    // FIX: Update the conversation title if it's still "New Conversation"
+    const firstUserMessage = updatedMessages.find((m) => m.role === 'user');
+    if (
+      firstUserMessage &&
+      firstUserMessage.content &&
+      updatedTargetConversation.name === 'New Conversation'
+    ) {
+      updatedTargetConversation.name = firstUserMessage.content.substring(0, 30);
+    }
     
     console.log('🔵 [WebSocket] Before conversations update:');
     console.log('  - Current conversations length:', currentConversations.length);
