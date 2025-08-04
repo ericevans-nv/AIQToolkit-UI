@@ -1,5 +1,7 @@
 'use client'
 
+import { env } from 'next-runtime-env'
+
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { 
   IconArrowsSort, 
@@ -15,7 +17,7 @@ import { getWorkflowName } from '@/utils/app/helper';
 
 export const ChatHeader = ({ webSocketModeRef = {} }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isExpanded, setIsExpanded] = useState(process?.env?.NEXT_PUBLIC_RIGHT_MENU_OPEN === 'true' ? true : false);
+    const [isExpanded, setIsExpanded] = useState(env('NEXT_PUBLIC_RIGHT_MENU_OPEN') === 'true' || process?.env?.NEXT_PUBLIC_RIGHT_MENU_OPEN === 'true' ? true : false);
     const menuRef = useRef(null);
 
     const workflow = getWorkflowName()

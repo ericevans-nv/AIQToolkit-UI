@@ -124,7 +124,7 @@ export const Chat = () => {
     else {
       toast.dismiss(websocketLoadingToastId);
     }
-    
+
     return () => {
       if (webSocketRef?.current) {
         webSocketRef?.current?.close();
@@ -144,7 +144,33 @@ export const Chat = () => {
     }
 
     return new Promise((resolve) => {
-      const ws = new WebSocket((sessionStorage.getItem('webSocketURL') || webSocketURL));
+      // Universal cookie handling for both cross-origin and same-origin connections
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop()?.split(';').shift();
+        return null;
+      };
+
+      const sessionCookie = getCookie('aiqtoolkit-session');
+      let wsUrl: string = sessionStorage.getItem('webSocketURL') || webSocketURL || 'ws://127.0.0.1:8000/websocket';
+
+      // Determine if this is a cross-origin connection
+      const wsUrlObj = new URL(wsUrl);
+      const isCrossOrigin = wsUrlObj.origin !== window.location.origin;
+
+      // Always add session cookie as query parameter for reliability
+      // This works for both cross-origin (required) and same-origin (redundant but harmless)
+      if (sessionCookie) {
+        const separator = wsUrl.includes('?') ? '&' : '?';
+        wsUrl += `${separator}session=${encodeURIComponent(sessionCookie)}`;
+
+        console.log(`WebSocket: ${isCrossOrigin ? 'Cross-origin' : 'Same-origin'} connection with session:`, sessionCookie.substring(0, 10) + '...');
+      } else {
+        console.log('WebSocket: No session cookie found');
+      }
+
+      const ws = new WebSocket(wsUrl);
 
       websocketLoadingToastId = toast.loading(
         "WebSocket is not connected, trying to connect...",
@@ -152,14 +178,14 @@ export const Chat = () => {
       );
 
       ws.onopen = () => {
-       
+
         toast.success("Connected to " + (sessionStorage.getItem('webSocketURL') || webSocketURL), {
           id: "websocketSuccessToastId",
         });
         toast.dismiss(websocketLoadingToastId);
 
         // using ref due to usecallback for handlesend which will be recreated during next render when dependency array changes
-        // so values inside of are still one and be updated after next render 
+        // so values inside of are still one and be updated after next render
         // so we'll not see any changes to websocket (state variable) or webSocketConnected (context variable) changes while the function is executing
         webSocketConnectedRef.current = true;
         homeDispatch({ field: "webSocketConnected", value: true });
@@ -175,7 +201,7 @@ export const Chat = () => {
       ws.onclose = async () => {
         if (retryCount < maxRetries) {
           retryCount++;
-  
+
           // Retry and capture the result
           if(webSocketModeRef?.current) {
              // Wait for retry delay
@@ -220,7 +246,7 @@ export const Chat = () => {
       };
     }
   }, [intermediateStepOverride]);
-  
+
 
   const handleWebSocketMessage = (message: any) => {
     // console.log('Received message via websocket', message);
@@ -240,6 +266,35 @@ export const Chat = () => {
 
     // handling human in the loop messages
     if(message?.type === webSocketMessageTypes.systemInteractionMessage) {
+      // Check for OAuth consent message and automatically open OAuth URL directly
+      if(message?.content?.input_type === 'oauth_consent') {
+        // Expect the OAuth URL to be directly in the message content
+        const oauthUrl = message?.content?.oauth_url || message?.content?.redirect_url || message?.content?.text;
+        if (oauthUrl) {
+          // Open the OAuth URL directly in a popup window
+          const popup = window.open(
+            oauthUrl,
+            'oauth-popup',
+            'width=600,height=700,scrollbars=yes,resizable=yes'
+          );
+
+          // Optional: Set up message listener for OAuth completion
+          const handleOAuthComplete = (event: MessageEvent) => {
+            // You can handle OAuth completion messages here if needed
+            console.log('OAuth flow completed:', event.data);
+            if (popup && !popup.closed) {
+              popup.close();
+            }
+            window.removeEventListener('message', handleOAuthComplete);
+          };
+          window.addEventListener('message', handleOAuthComplete);
+        } else {
+          console.error('OAuth consent message received but no URL found in content:', message?.content);
+          toast.error('OAuth URL not found in message content');
+        }
+        return; // Don't process further or show modal
+      }
+
       openModal(message)
     }
 
@@ -257,12 +312,12 @@ export const Chat = () => {
       }, 200);
     }
 
-    // updating conversation with new message 
-    let updatedMessages    
+    // updating conversation with new message
+    let updatedMessages
     let selectedConversation = window.sessionStorage.getItem('selectedConversation')
     selectedConversation = JSON.parse(selectedConversation ?? '{}')
     let conversations = JSON.parse(window.sessionStorage.getItem('conversationsHistory')?? '[]')
-  
+
     // logic
     // if this is the first message (of the assistant response to user message), then add the message to the conversation as 'assistant' message
     // else append the message to the exisiting assistant message (part of the stream appending)
@@ -284,24 +339,24 @@ export const Chat = () => {
           let index = msg?.intermediateSteps?.length || 0;
           message = {...message, index}
 
-          // process IntermediateSteps 
-          let processedIntermediateSteps = (message?.type === webSocketMessageTypes.systemIntermediateMessage) 
-            ? processIntermediateMessage(msg.intermediateSteps || [], message, sessionStorage.getItem('intermediateStepOverride') === 'false' ? false : intermediateStepOverride) 
+          // process IntermediateSteps
+          let processedIntermediateSteps = (message?.type === webSocketMessageTypes.systemIntermediateMessage)
+            ? processIntermediateMessage(msg.intermediateSteps || [], message, sessionStorage.getItem('intermediateStepOverride') === 'false' ? false : intermediateStepOverride)
             : msg.intermediateSteps || [];
 
-          if(message?.type === webSocketMessageTypes.systemInteractionMessage){ 
+          if(message?.type === webSocketMessageTypes.systemInteractionMessage){
             msg.humanInteractionMessages = msg.humanInteractionMessages || [];
             msg.humanInteractionMessages.push(message);
           }
           if(message?.type === 'error') {
             msg.errorMessages = msg.errorMessages || [];
             msg.errorMessages.push(message);
-          } 
+          }
 
           // update the assistant message with new content and processed intermediate steps
-          return { 
-            ...msg, 
-            content: updatedContent,  
+          return {
+            ...msg,
+            content: updatedContent,
             intermediateSteps: processedIntermediateSteps,
             humanInteractionMessages: msg.humanInteractionMessages || [],
             errorMessages: msg.errorMessages || []
@@ -314,14 +369,14 @@ export const Chat = () => {
       // add the new message to the conversation as 'assistant' message
       updatedMessages = [
         ...(selectedConversation?.messages || []),
-        { 
-          role: 'assistant', 
-          id: message?.id, 
+        {
+          role: 'assistant',
+          id: message?.id,
           parentId: message?.parent_id,
           content: message?.content?.text || '',
-          intermediateSteps: (message?.type === webSocketMessageTypes.systemIntermediateMessage) ? [{...message, index: 0}] : [], 
-          humanInteractionMessages: (message?.type === webSocketMessageTypes.systemInteractionMessage) ? [message] : [], 
-          errorMessages: message?.type === 'error' ? [message] : [] 
+          intermediateSteps: (message?.type === webSocketMessageTypes.systemIntermediateMessage) ? [{...message, index: 0}] : [],
+          humanInteractionMessages: (message?.type === webSocketMessageTypes.systemInteractionMessage) ? [message] : [],
+          errorMessages: message?.type === 'error' ? [message] : []
         },
       ];
     }
@@ -348,7 +403,7 @@ export const Chat = () => {
         return conversation;
       },
     ) || [];
-    
+
     if (updatedConversations.length === 0) {
       updatedConversations.push(updatedConversation);
     }
@@ -415,10 +470,10 @@ export const Chat = () => {
               handleSend(message, 1)
               return
             }
-            
+
           }
           toast.dismiss()
-          
+
 
           saveConversation(updatedConversation);
           const updatedConversations: Conversation[] = conversations.map(
@@ -465,19 +520,19 @@ export const Chat = () => {
                 role: message.role,
                 content: [
                   {
-                    type: 'text', 
+                    type: 'text',
                     text: message?.content?.trim() || ''
                   }
                 ],
               };
             })
           }
-          
+
           const wsMessage = {
             type: webSocketMessageTypes.userMessage,
             schema_type: sessionStorage.getItem('webSocketSchema') || webSocketSchema,
             id: message?.id,
-            thread_id: selectedConversation.id,
+            conversation_id: selectedConversation.id,
             content: {
               messages: chatMessages
             },
@@ -500,8 +555,8 @@ export const Chat = () => {
           messages: chatHistory ? messagesCleaned : [{ role: 'user', content: message?.content }],
           chatCompletionURL: sessionStorage.getItem('chatCompletionURL') || chatCompletionURL,
           additionalProps: {
-            enableIntermediateSteps: sessionStorage.getItem('enableIntermediateSteps') 
-            ? sessionStorage.getItem('enableIntermediateSteps') === 'true' 
+            enableIntermediateSteps: sessionStorage.getItem('enableIntermediateSteps')
+            ? sessionStorage.getItem('enableIntermediateSteps') === 'true'
             : enableIntermediateSteps,
           }
         };
@@ -518,6 +573,7 @@ export const Chat = () => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Conversation-Id': selectedConversation?.id || '',
             },
             signal: controllerRef.current.signal, // Use ref here
             body,
@@ -607,7 +663,7 @@ export const Chat = () => {
               homeDispatch({ field: 'loading', value: false });
               if (isFirst) {
                 isFirst = false;
-              
+
                 // loop through rawIntermediateSteps and add them to the processedIntermediateSteps
                 let processedIntermediateSteps = []
                 rawIntermediateSteps.forEach((step) => {
@@ -617,8 +673,8 @@ export const Chat = () => {
                 // update the message
                 const updatedMessages: Message[] = [
                   ...updatedConversation.messages,
-                  { 
-                    role: 'assistant', 
+                  {
+                    role: 'assistant',
                     content: text, // main response content without intermediate steps
                     intermediateSteps: [...processedIntermediateSteps], // intermediate steps
                   },
@@ -628,7 +684,7 @@ export const Chat = () => {
                   ...updatedConversation,
                   messages: updatedMessages,
                 };
-                
+
                 homeDispatch({
                   field: 'selectedConversation',
                   value: updatedConversation,
@@ -638,7 +694,7 @@ export const Chat = () => {
                 const updatedMessages: Message[] =
                   updatedConversation.messages.map((message, index) => {
                     if (index === updatedConversation.messages.length - 1) {
-                      // process intermediate steps 
+                      // process intermediate steps
                       // need to loop through raw rawIntermediateSteps and add them to the updatedIntermediateSteps
                       let updatedIntermediateSteps = [...message?.intermediateSteps]
                       rawIntermediateSteps.forEach((step) => {
@@ -646,8 +702,8 @@ export const Chat = () => {
                       })
 
                       // update the message
-                      const msg = { 
-                        ...message, 
+                      const msg = {
+                        ...message,
                         content: text, // main response content
                         intermediateSteps: updatedIntermediateSteps // intermediate steps
                       };
@@ -767,7 +823,7 @@ export const Chat = () => {
     const handleUserInput = () => {
       // Mark this as user-initiated scrolling
       isUserInitiatedScroll.current = true;
-      
+
       // Reset the flag after a short delay
       if (scrollTimeout.current) {
         clearTimeout(scrollTimeout.current);
@@ -780,7 +836,7 @@ export const Chat = () => {
     // Add event listeners for user interactions
     container.addEventListener('wheel', handleUserInput, { passive: true });
     container.addEventListener('touchmove', handleUserInput, { passive: true });
-    
+
     return () => {
       // Clean up
       container.removeEventListener('wheel', handleUserInput);
@@ -794,25 +850,25 @@ export const Chat = () => {
 // Now modify your handleScroll function to use this flag
   const handleScroll = useCallback(() => {
     if (!chatContainerRef.current || !isUserInitiatedScroll.current) return;
-    
+
     const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
     const isScrollingUp = scrollTop < lastScrollTop.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 20;
-    
+
     // Only disable auto-scroll if it's a user-initiated upward scroll
     if (isScrollingUp && autoScrollEnabled && messageIsStreaming) {
       setAutoScrollEnabled(false);
       homeDispatch({ field: 'autoScroll', value: false });
       setShowScrollDownButton(true);
     }
-    
+
     // Re-enable auto-scroll if user scrolls to bottom
     if (isAtBottom && !autoScrollEnabled) {
       setAutoScrollEnabled(true);
       homeDispatch({ field: 'autoScroll', value: true });
       setShowScrollDownButton(false);
     }
-    
+
     lastScrollTop.current = scrollTop;
   }, [autoScrollEnabled, messageIsStreaming]);
 
@@ -848,7 +904,7 @@ export const Chat = () => {
         if (entry.isIntersecting) {
           textareaRef.current?.focus();
         }
-        
+
         // Only auto-scroll if we're streaming and auto-scroll is enabled
         if (autoScrollEnabled && messageIsStreaming) {
           requestAnimationFrame(() => {
@@ -864,7 +920,7 @@ export const Chat = () => {
         threshold: 0.5,
       }
     );
-  
+
     const messagesEndElement = messagesEndRef.current;
     if (messagesEndElement) {
       observer.observe(messagesEndElement);
@@ -877,7 +933,7 @@ export const Chat = () => {
   }, [autoScrollEnabled, messageIsStreaming]);
 
   return (
-    <div 
+    <div
       className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541] transition-all duration-300 ease-in-out"
     >
       <>

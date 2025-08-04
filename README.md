@@ -1,9 +1,9 @@
 # AIQ Toolkit - UI
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![AIQ Toolkit](https://img.shields.io/badge/AIQ Toolkit-Frontend-green)](https://github.com/NVIDIA/AIQ Toolkit)
+[![AIQ Toolkit](https://img.shields.io/badge/AIQToolkit-Frontend-green)](https://github.com/NVIDIA/AIQToolkit/tree/main)
 
-This is the official frontend user interface component for [AIQ Toolkit](https://github.com/NVIDIA/AIQ Toolkit), an open-source library for building AI agents and workflows.
+This is the official frontend user interface component for [AIQ Toolkit](https://github.com/NVIDIA/AIQToolkit/tree/main), an open-source library for building AI agents and workflows.
 
 This project builds upon the work of:
 - [chatbot-ui](https://github.com/mckaywrigley/chatbot-ui) by Mckay Wrigley
@@ -20,7 +20,7 @@ This project builds upon the work of:
 ## Getting Started
 
 ### Prerequisites
-- [AIQ Toolkit](https://github.com/NVIDIA/AIQ Toolkit) installed and configured
+- [AIQ Toolkit](https://github.com/NVIDIA/AIQToolkit/tree/main) installed and configured
 - Git
 - Node.js (v18 or higher)
 - npm or Docker
@@ -29,8 +29,8 @@ This project builds upon the work of:
 
 Clone the repository:
 ```bash
-git clone git@github.com:NVIDIA/AIQ Toolkit-UI.git
-cd AIQ Toolkit-UI
+git clone git@github.com:NVIDIA/AIQToolkit.git
+cd AIQToolkit
 ```
 
 Install dependencies:
@@ -49,12 +49,12 @@ The application will be available at `http://localhost:3000`
 #### Docker Deployment
 ```bash
 # Build the Docker image
-docker build -t AIQ Toolkit-UI .
+docker build -t aiqtoolkit-ui .
 
 # Run the container with environment variables from .env
 # Ensure the .env file is present before running this command.
 # Skip --env-file .env if no overrides are needed.
-docker run --env-file .env -p 3000:3000 AIQ Toolkit-UI
+docker run --env-file .env -p 3000:3000 aiqtoolkit-ui
 ```
 
 ![AIQ Toolkit Web User Interface](public/screenshots/ui_home_page.png)
@@ -83,8 +83,8 @@ NOTE: Most of the time, you will want to select /chat/stream for intermediate re
 ### Simple Calculator Example
 
 #### Setup and Configuration
-1. Set up [AIQ Toolkit](https://github.com/NVIDIA/AIQ Toolkit/blob/main/docs/source/1_intro/getting_started.md) 
-2. Start workflow by following the [Simple Calculator Example](https://github.com/NVIDIA/AIQ Toolkit/blob/main/examples/simple_calculator/README.md)
+1. Set up [AIQ Toolkit Get Started ](https://github.com/NVIDIA/AIQToolkit/blob/main/docs/source/intro/get-started.md)
+2. Start workflow by following the [Simple Calculator Example](https://github.com/NVIDIA/AIQToolkit/blob/main/examples/simple_calculator/README.md)
 ```bash
 aiq serve --config_file=examples/simple_calculator/configs/config.yml
 ```
@@ -145,7 +145,7 @@ The application includes built-in data management features to backup and restore
 ## API Integration
 
 ### Server Communication
-The UI supports both HTTP requests (OpenAI compatible) and WebSocket connections for server communication. For detailed information about WebSocket messaging integration, please refer to the [WebSocket Documentation](https://github.com/NVIDIA/AIQ Toolkit/blob/main/docs/5_advanced/websockets.md) in the AIQ Toolkit documentation.
+The UI supports both HTTP requests (OpenAI compatible) and WebSocket connections for server communication. For detailed information about WebSocket messaging integration, please refer to the [WebSocket Documentation](https://github.com/NVIDIA/AIQToolkit/blob/main/docs/source/references/websockets.md) in the AIQ Toolkit documentation.
 
 
 

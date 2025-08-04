@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { env } from 'next-runtime-env'
 export const getInitials = (fullName = '') => {
     if (!fullName) {
         return "";
@@ -86,7 +87,7 @@ export const getURLQueryParam = ({ param = '' }) => {
 
 
 export const getWorkflowName = () => {
-    const workflow = getURLQueryParam({ param: 'workflow' }) || process?.env?.NEXT_PUBLIC_WORKFLOW || 'AIQ Toolkit';
+    const workflow = getURLQueryParam({ param: 'workflow' }) || env('NEXT_PUBLIC_WORKFLOW') || process?.env?.NEXT_PUBLIC_WORKFLOW || 'AIQ Toolkit';
     return workflow
 }
 
