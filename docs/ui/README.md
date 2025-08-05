@@ -9,6 +9,7 @@ This directory contains comprehensive documentation for the NeMo Agent Toolkit U
 - **[Chat Interface](./chat/chat-interface.md)** - Real-time conversational interface with streaming and voice input
 - **[Sidebar Navigation](./sidebar/conversation-management.md)** - Conversation organization, search, and folder management
 - **[Configuration Management](./settings/configuration-management.md)** - API configuration, import/export, and application settings
+- **[Button Reference](./button-reference.md)** - Comprehensive guide to all interactive buttons in the UI
 
 ### Component Documentation
 Each component directory contains a README.md with detailed behavior and integration information:
