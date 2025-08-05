@@ -101,12 +101,23 @@ const handler = async (req: Request): Promise<Response> => {
           const reader = response?.body?.getReader();
           let buffer = '';
           let counter = 0;
+          let streamContent = ''; // Accumulate content for final OutputArgsSchema processing
+          let finalAnswerSent = false; // Track if we've sent the final answer
           try {
             while (true) {
-              const { done, value } = await reader?.read();
+              const result = await reader?.read();
+              if (!result) break;
+              const { done, value } = result;
               if (done) break;
 
-              buffer += decoder.decode(value, { stream: true });
+              const chunk = decoder.decode(value, { stream: true });
+              buffer += chunk;
+              
+              // Accumulate content for generate/stream final processing
+              if (chatCompletionURL.includes('generate')) {
+                streamContent += chunk;
+              }
+              
               const lines = buffer.split('\n');
               buffer = lines.pop() || '';
 
@@ -130,6 +141,20 @@ const handler = async (req: Request): Promise<Response> => {
                   } catch (error) {
                     console.log('aiq - error parsing JSON:', error);
                   }
+                }
+                // Handle generate/stream: only emit intermediate steps, accumulate for final processing
+                else if (chatCompletionURL.includes('generate')) {
+                  // Only emit intermediate steps as <intermediatestep> tags
+                  if (line.includes('<intermediatestep>') && line.includes('</intermediatestep>')) {
+                    controller.enqueue(encoder.encode(line));
+                  }
+                  // Do NOT enqueue raw lines - they pollute the assistant content
+                  // All content is being accumulated in streamContent for final processing
+                }
+                // Handle other non-SSE content
+                else if (line.trim() && !line.startsWith('data: ')) {
+                  // Send other content as-is (for compatibility)
+                  controller.enqueue(encoder.encode(line));
                 }
                 // TODO - fix or remove this and use websocket to support intermediate data
                 if (line.startsWith('intermediate_data: ')) {
@@ -190,6 +215,40 @@ const handler = async (req: Request): Promise<Response> => {
             console.log('aiq - stream reading error, closing stream', error);
             controller.close();
           } finally {
+            // Process final OutputArgsSchema for generate/stream
+            if (chatCompletionURL.includes('generate') && !finalAnswerSent && streamContent.includes('OutputArgsSchema')) {
+              // Robust regex that handles escaped quotes within the value
+              const regex = /OutputArgsSchema\s*\(\s*value\s*=\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g;
+              const matches = [];
+              let match;
+              while ((match = regex.exec(streamContent)) !== null) {
+                matches.push(match);
+              }
+              if (matches.length > 0) {
+                // Take the last match in the entire stream
+                const lastMatch = matches[matches.length - 1];
+                const quotedValue = lastMatch[1]; // Full quoted string including quotes
+                
+                // Remove surrounding quotes and unescape
+                let finalAnswer = '';
+                if (quotedValue.startsWith('"') && quotedValue.endsWith('"')) {
+                  finalAnswer = quotedValue.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                } else if (quotedValue.startsWith("'") && quotedValue.endsWith("'")) {
+                  finalAnswer = quotedValue.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+                }
+                
+                finalAnswer = finalAnswer.trim();
+                
+                if (finalAnswer) {
+                  // Send only the extracted final answer as plain text content
+                  controller.enqueue(encoder.encode(finalAnswer));
+                  finalAnswerSent = true;
+                }
+              } else {
+                console.log('Missing OutputArgsSchema.value in generate/stream finalization');
+              }
+            }
+            
             console.log(
               'aiq - response processing is completed, closing stream',
             );
@@ -214,7 +273,40 @@ const handler = async (req: Request): Promise<Response> => {
         console.log('aiq - error parsing JSON response', error);
       }
 
-      // Safely extract content with proper checks
+      // Special handling for generate endpoints to extract OutputArgsSchema.value
+      if (chatCompletionURL.includes('generate') && data.includes('OutputArgsSchema')) {
+        // Robust regex that handles escaped quotes within the value
+        const regex = /OutputArgsSchema\s*\(\s*value\s*=\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g;
+        const matches = [];
+        let match;
+        while ((match = regex.exec(data)) !== null) {
+          matches.push(match);
+        }
+        if (matches.length > 0) {
+          // Take the last match
+          const lastMatch = matches[matches.length - 1];
+          const quotedValue = lastMatch[1]; // Full quoted string including quotes
+          
+          // Remove surrounding quotes and unescape
+          let finalAnswer = '';
+          if (quotedValue.startsWith('"') && quotedValue.endsWith('"')) {
+            finalAnswer = quotedValue.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+          } else if (quotedValue.startsWith("'") && quotedValue.endsWith("'")) {
+            finalAnswer = quotedValue.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+          }
+          
+          finalAnswer = finalAnswer.trim();
+          
+          if (finalAnswer) {
+            console.log('aiq - extracted final answer from generate response');
+            return new Response(finalAnswer);
+          }
+        } else {
+          console.log('Missing OutputArgsSchema.value in generate finalization');
+        }
+      }
+
+      // Safely extract content with proper checks for other endpoints
       const content =
         parsed?.output || // Check for `output`
         parsed?.answer || // Check for `answer`
@@ -233,7 +325,7 @@ const handler = async (req: Request): Promise<Response> => {
         return new Response(response.body || data);
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.log('error - while making request', error);
     const formattedError = `Something went wrong. Please try again. \n\n<details><summary>Details</summary>Error Message: ${
       error?.message || 'Unknown error'

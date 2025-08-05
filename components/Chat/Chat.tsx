@@ -19,20 +19,32 @@ import {
 import {
   fetchLastMessage,
   processIntermediateMessage,
+  updateConversationTitle,
+} from '@/utils/app/helper';
+import {
+  shouldAppendResponse,
+  appendAssistantText,
+  mergeIntermediateSteps,
+  applyMessageUpdate,
+  createAssistantMessage,
+  updateAssistantMessage,
+  shouldRenderAssistantMessage,
+} from '@/utils/chatTransform';
+import {
+  WebSocketInbound,
   validateWebSocketMessage,
   isSystemResponseMessage,
   isSystemIntermediateMessage,
   isSystemInteractionMessage,
   isErrorMessage,
+  isSystemResponseInProgress,
+  isSystemResponseComplete,
+  isOAuthConsentMessage,
   extractOAuthUrl,
   shouldAppendResponseContent,
-  createAssistantMessage,
-  updateConversationTitle,
-  appendToAssistantContent,
-  shouldRenderAssistantMessage,
-} from '@/utils/app/helper';
+} from '@/types/websocket';
 import { throttle } from '@/utils/data/throttle';
-import { ChatBody, Conversation, Message, WebSocketMessage } from '@/types/chat';
+import { ChatBody, Conversation, Message } from '@/types/chat';
 import HomeContext from '@/pages/api/home/home.context';
 import { ChatInput } from './ChatInput';
 import { ChatLoader } from './ChatLoader';
@@ -42,6 +54,83 @@ import { v4 as uuidv4 } from 'uuid';
 import { InteractionModal } from '@/components/Chat/ChatInteractionMessage';
 import { webSocketMessageTypes } from '@/utils/app/const';
 import { ChatHeader } from './ChatHeader';
+
+// Streaming utilities for handling SSE and NDJSON safely
+function normalizeNewlines(s: string): string {
+  // turn CRLF into LF so splitting is predictable
+  return s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
+function extractSsePayloads(buffer: string): { frames: string[]; rest: string } {
+  buffer = normalizeNewlines(buffer);
+
+  // Split on blank line (event delimiter)
+  const parts = buffer.split(/\n\n/);
+  const rest = parts.pop() ?? '';
+
+  const frames: string[] = [];
+
+  for (const block of parts) {
+    // Keep only lines that start with "data:" possibly followed by a space
+    const dataLines = block
+      .split('\n')
+      .filter(line => /^data:\s*/.test(line))
+      .map(line => line.replace(/^data:\s*/, '').trim())
+      .filter(line => line.length > 0);
+
+    if (dataLines.length === 0) continue;
+
+    // Some servers send multi-line JSON; join them
+    const payload = dataLines.join('\n');
+
+    // Ignore sentinel frames
+    if (payload === '[DONE]' || payload === 'DONE') continue;
+
+    frames.push(payload);
+  }
+
+  return { frames, rest };
+}
+
+function splitNdjson(buffer: string): { lines: string[]; rest: string } {
+  buffer = normalizeNewlines(buffer);
+  const parts = buffer.split('\n');
+  const rest = parts.pop() ?? '';
+  // strip empty/whitespace lines
+  const lines = parts.map(l => l.trim()).filter(Boolean);
+  return { lines, rest };
+}
+
+function tryParseJson<T = any>(s: string): T | null {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+function parsePossiblyConcatenatedJson(payload: string): any[] {
+  // Fast path
+  const single = tryParseJson(payload);
+  if (single !== null) return [single];
+
+  // Slow path: try to split concatenated top-level objects
+  const objs: any[] = [];
+  let depth = 0, start = -1;
+  for (let i = 0; i < payload.length; i++) {
+    const ch = payload[i];
+    if (ch === '{') { if (depth === 0) start = i; depth++; }
+    else if (ch === '}') { depth--; if (depth === 0 && start !== -1) {
+      const slice = payload.slice(start, i + 1);
+      const parsed = tryParseJson(slice);
+      if (parsed !== null) objs.push(parsed);
+      start = -1;
+    }}
+  }
+  return objs;
+}
+
+// Debug helper for streaming parse issues (commented out for production)
+// const debugParse = (label: string, payload: string) => {
+//   const preview = payload.length > 200 ? payload.slice(0, 200) + '…' : payload;
+//   console.debug(`[stream][${label}] payload preview:`, preview);
+// };
 
 export const Chat = () => {
   const { t } = useTranslation('chat');
@@ -263,7 +352,7 @@ export const Chat = () => {
   /**
    * Handles OAuth consent flow by opening popup window
    */
-  const handleOAuthConsent = (message: WebSocketMessage) => {
+  const handleOAuthConsent = (message: WebSocketInbound) => {
     if (!isSystemInteractionMessage(message)) return false;
     
     if (message.content?.input_type === 'oauth_consent') {
@@ -314,27 +403,27 @@ export const Chat = () => {
    * Only appends content for in_progress status with non-empty text
    */
   const processSystemResponseMessage = (
-    message: WebSocketMessage,
+    message: WebSocketInbound,
     messages: Message[]
   ): Message[] => {
-    if (!isSystemResponseMessage(message) || !shouldAppendResponseContent(message)) {
+    if (!shouldAppendResponse(message)) {
       return messages;
     }
 
-    const incomingText = message.content?.text?.trim() || '';
+    const incomingText = isSystemResponseMessage(message) ? (message.content?.text?.trim() || '') : '';
     const lastMessage = messages.at(-1);
     const isLastAssistant = lastMessage?.role === 'assistant';
 
     if (isLastAssistant) {
-      // Append to existing assistant message
-      const combinedContent = appendToAssistantContent(lastMessage.content || '', incomingText);
+      // Append to existing assistant message using pure helper
+      const combinedContent = appendAssistantText(lastMessage.content || '', incomingText);
       return messages.map((m, idx) =>
         idx === messages.length - 1
-          ? { ...m, content: combinedContent, timestamp: Date.now() }
+          ? updateAssistantMessage(m, combinedContent)
           : m
       );
     } else {
-      // Create new assistant message
+      // Create new assistant message using pure helper
       return [
         ...messages,
         createAssistantMessage(message.id, message.parent_id, incomingText),
@@ -346,7 +435,7 @@ export const Chat = () => {
    * Processes intermediate step messages without modifying content
    */
   const processIntermediateStepMessage = (
-    message: WebSocketMessage,
+    message: WebSocketInbound,
     messages: Message[]
   ): Message[] => {
     if (!isSystemIntermediateMessage(message)) return messages;
@@ -356,30 +445,26 @@ export const Chat = () => {
 
     if (!isLastAssistant) {
       // Create new assistant message with empty content for intermediate steps
+      const stepWithIndex = { ...message, index: 0 };
       return [
         ...messages,
-        createAssistantMessage(message.id, message.parent_id, '', [{ ...message, index: 0 }]),
+        createAssistantMessage(message.id, message.parent_id, '', [stepWithIndex]),
       ];
     } else {
-      // Update intermediate steps on existing assistant message
+      // Update intermediate steps on existing assistant message using pure helper
       const lastIdx = messages.length - 1;
       const lastSteps = messages[lastIdx]?.intermediateSteps || [];
-      const mergedSteps = processIntermediateMessage(
+      const mergedSteps = mergeIntermediateSteps(
         lastSteps,
-        { ...message, index: lastSteps.length || 0 },
+        message,
         sessionStorage.getItem('intermediateStepOverride') === 'false'
           ? false
-          : intermediateStepOverride
+          : Boolean(intermediateStepOverride)
       );
 
       return messages.map((m, idx) =>
         idx === lastIdx
-          ? {
-              ...m,
-              content: m.content || '', // Preserve existing content
-              intermediateSteps: mergedSteps,
-              timestamp: Date.now(),
-            }
+          ? updateAssistantMessage(m, m.content, mergedSteps)
           : m
       );
     }
@@ -389,7 +474,7 @@ export const Chat = () => {
    * Processes error messages by attaching them to assistant messages
    */
   const processErrorMessage = (
-    message: WebSocketMessage,
+    message: WebSocketInbound,
     messages: Message[]
   ): Message[] => {
     if (!isErrorMessage(message)) return messages;
@@ -409,7 +494,7 @@ export const Chat = () => {
           : m
       );
     } else {
-      // Create new assistant message for error
+      // Create new assistant message for error using pure helper
       return [
         ...messages,
         createAssistantMessage(message.id, message.parent_id, '', [], [], [message]),
@@ -422,20 +507,35 @@ export const Chat = () => {
    * Processes different message types and updates conversation state
    */
   const handleWebSocketMessage = (message: any) => {
-    // Validate message structure early
+    // Validate message structure early using type guard
     if (!validateWebSocketMessage(message)) return;
 
     // End loading indicators as messages arrive
     homeDispatch({ field: 'loading', value: false });
-    if (message.status === 'complete') {
+    if (isSystemResponseComplete(message)) {
       setTimeout(() => {
         homeDispatch({ field: 'messageIsStreaming', value: false });
       }, 200);
     }
 
-    // Handle human-in-the-loop interactions
+    // Handle human-in-the-loop interactions using type guard
     if (isSystemInteractionMessage(message)) {
-      if (handleOAuthConsent(message)) return;
+      if (isOAuthConsentMessage(message)) {
+        const oauthUrl = extractOAuthUrl(message);
+        if (oauthUrl) {
+          const popup = window.open(
+            oauthUrl,
+            'oauth-popup',
+            'width=600,height=700,scrollbars=yes,resizable=yes'
+          );
+          const handleOAuthComplete = (event: MessageEvent) => {
+            if (popup && !popup.closed) popup.close();
+            window.removeEventListener('message', handleOAuthComplete);
+          };
+          window.addEventListener('message', handleOAuthComplete);
+        }
+        return;
+      }
       openModal(message);
       return;
     }
@@ -448,8 +548,8 @@ export const Chat = () => {
       return;
     }
 
-    // Skip creating/updating assistant text for system_response:complete
-    if (isSystemResponseMessage(message) && message.status === 'complete') {
+    // Skip creating/updating assistant text for system_response:complete using type guard
+    if (isSystemResponseComplete(message)) {
       return;
     }
 
@@ -461,17 +561,14 @@ export const Chat = () => {
     );
     if (!targetConversation) return;
 
-    // Process message based on type
+    // Process message based on type using pure helpers
     let updatedMessages = targetConversation.messages;
     updatedMessages = processSystemResponseMessage(message, updatedMessages);
     updatedMessages = processIntermediateStepMessage(message, updatedMessages);
     updatedMessages = processErrorMessage(message, updatedMessages);
 
-    // Update conversation with new messages and title
-    const updatedConversation = updateConversationTitle({
-      ...targetConversation,
-      messages: updatedMessages,
-    });
+    // Update conversation with new messages and title using pure helper
+    const updatedConversation = applyMessageUpdate(targetConversation, updatedMessages);
 
     // Update conversations array
     const updatedConversations = currentConversations.map((c) =>
@@ -609,7 +706,7 @@ export const Chat = () => {
         const messagesCleaned = updatedConversation.messages.map((message) => {
           return {
             role: message.role,
-            content: message.content.trim(),
+            content: (typeof message.content === 'string' ? message.content : '').trim(),
           };
         })
 
@@ -631,7 +728,7 @@ export const Chat = () => {
 
         let response;
         try {
-          response = await fetch(`${window.location.origin}\\${endpoint}`, {
+          response = await fetch(`${window.location.origin}/${endpoint}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -675,10 +772,69 @@ export const Chat = () => {
             let text = '';
             let counter = 1;
             let partialIntermediateStep = ''; // Add this to store partial chunks
+            
+            // Initialize streaming buffers
+            const currentURL = sessionStorage.getItem('chatCompletionURL') || chatCompletionURL || '';
+            const isGenerateStream = currentURL.includes('generate');
+            let sseBuffer = '';
+            let ndjsonBuffer = '';
+            
             while (!done) {
               const { value, done: doneReading } = await reader.read();
               done = doneReading;
-              let chunkValue = decoder.decode(value);
+              if (!value) continue;
+              
+              let chunkValue = '';
+              
+              // Handle generate/stream endpoints safely
+              if (isGenerateStream) {
+                const chunkText = decoder.decode(value, { stream: true });
+                
+                // 1) Try SSE first
+                sseBuffer += chunkText;
+                let sseFrames: string[] = [];
+                ({ frames: sseFrames, rest: sseBuffer } = extractSsePayloads(sseBuffer));
+
+                let extractedText = '';
+
+                if (sseFrames.length > 0) {
+                  for (const frame of sseFrames) {
+                    const objs = parsePossiblyConcatenatedJson(frame);
+                    for (const obj of objs) {
+                      if (obj && typeof obj.value === 'string') {
+                        extractedText += obj.value;
+                      } else if (typeof obj === 'string') {
+                        extractedText += obj; // some servers may send string payloads
+                      }
+                    }
+                  }
+                } else {
+                  // 2) Fall back to NDJSON if it wasn't SSE
+                  ndjsonBuffer += chunkText;
+                  let lines: string[] = [];
+                  ({ lines, rest: ndjsonBuffer } = splitNdjson(ndjsonBuffer));
+                  for (const line of lines) {
+                    const obj = tryParseJson<any>(line);
+                    if (obj && typeof obj.value === 'string') {
+                      extractedText += obj.value;
+                    } else if (typeof obj === 'string') {
+                      extractedText += obj;
+                    }
+                  }
+                }
+
+                // 3) If neither SSE nor NDJSON detected, treat as plain text
+                chunkValue = extractedText || chunkText;
+              } else {
+                // Non-generate streaming path (existing logic)
+                chunkValue = decoder.decode(value, { stream: true });
+              }
+              
+              // Ensure chunkValue is always a string
+              if (typeof chunkValue !== 'string') {
+                chunkValue = String(chunkValue ?? '');
+              }
+              
               counter++;
 
               // First, handle any partial chunk from previous iteration
@@ -700,12 +856,12 @@ export const Chat = () => {
               }
 
               // Process complete intermediate steps
-              let rawIntermediateSteps = [];
-              let messages = chunkValue.match(/<intermediatestep>([\s\S]*?)<\/intermediatestep>/g) || [];
-              for (const message of messages) {
+              let rawIntermediateSteps: any[] = [];
+              let stepMatches = chunkValue.match(/<intermediatestep>([\s\S]*?)<\/intermediatestep>/g) || [];
+              for (const stepMatch of stepMatches) {
                 try {
-                  const jsonString = message.replace('<intermediatestep>', '').replace('</intermediatestep>', '').trim();
-                  let rawIntermediateMessage = JSON.parse(jsonString);
+                  const jsonString = stepMatch.replace('<intermediatestep>', '').replace('</intermediatestep>', '').trim();
+                  let rawIntermediateMessage = tryParseJson<any>(jsonString);
                   // handle intermediate data
                   if (rawIntermediateMessage?.type === 'system_intermediate') {
                     rawIntermediateSteps.push(rawIntermediateMessage);
@@ -716,7 +872,7 @@ export const Chat = () => {
               }
 
               // if the received chunk contains rawIntermediateSteps then remove them from the chunkValue
-              if (messages.length > 0) {
+              if (stepMatches.length > 0) {
                 chunkValue = chunkValue.replace(/<intermediatestep>[\s\S]*?<\/intermediatestep>/g, '');
               }
 
@@ -758,7 +914,9 @@ export const Chat = () => {
                     if (index === updatedConversation.messages.length - 1) {
                       // process intermediate steps
                       // need to loop through raw rawIntermediateSteps and add them to the updatedIntermediateSteps
-                      let updatedIntermediateSteps = [...message?.intermediateSteps]
+                      let updatedIntermediateSteps = Array.isArray(message?.intermediateSteps) 
+                        ? [...message.intermediateSteps] 
+                        : []
                       rawIntermediateSteps.forEach((step) => {
                         updatedIntermediateSteps = processIntermediateMessage(updatedIntermediateSteps, step, sessionStorage.getItem('intermediateStepOverride') === 'false' ? false : intermediateStepOverride)
                       })
@@ -954,9 +1112,10 @@ export const Chat = () => {
   useEffect(() => {
     throttledScrollDown();
     selectedConversation &&
-      setCurrentMessage(
-        selectedConversation.messages[selectedConversation.messages.length - 2],
-      );
+      setCurrentMessage(() => {
+        const len = selectedConversation?.messages.length ?? 0;
+        return len >= 2 ? selectedConversation.messages[len - 2] : undefined;
+      });
   }, [selectedConversation, throttledScrollDown]);
 
   useEffect(() => {
