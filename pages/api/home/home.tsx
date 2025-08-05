@@ -1,4 +1,5 @@
-'use client'
+'use client';
+
 import { useEffect, useRef } from 'react';
 
 import { GetServerSideProps } from 'next';
@@ -7,7 +8,6 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 
 import { useCreateReducer } from '@/hooks/useCreateReducer';
-
 
 import {
   cleanConversationHistory,
@@ -19,6 +19,7 @@ import {
   updateConversation,
 } from '@/utils/app/conversation';
 import { saveFolders } from '@/utils/app/folders';
+import { getWorkflowName } from '@/utils/app/helper';
 import { getSettings } from '@/utils/app/settings';
 
 import { Conversation } from '@/types/chat';
@@ -33,7 +34,6 @@ import HomeContext from './home.context';
 import { HomeInitialState, initialState } from './home.state';
 
 import { v4 as uuidv4 } from 'uuid';
-import { getWorkflowName } from '@/utils/app/helper';
 
 const Home = (props: any) => {
   const { t } = useTranslation('chat');
@@ -42,15 +42,10 @@ const Home = (props: any) => {
     initialState,
   });
 
-  let workflow =  'AIQ Toolkit';
+  let workflow = 'NeMo Agent Toolkit';
 
   const {
-    state: {
-      lightMode,
-      folders,
-      conversations,
-      selectedConversation,
-    },
+    state: { lightMode, folders, conversations, selectedConversation },
     dispatch,
   } = contextValue;
 
@@ -97,7 +92,7 @@ const Home = (props: any) => {
     });
 
     dispatch({ field: 'conversations', value: updatedConversations });
-    saveConversations(updatedConversations);;
+    saveConversations(updatedConversations);
   };
 
   const handleUpdateFolder = (folderId: string, name: string) => {
@@ -167,7 +162,7 @@ const Home = (props: any) => {
   }, [selectedConversation, dispatch]);
 
   useEffect(() => {
-    workflow = getWorkflowName()
+    workflow = getWorkflowName();
     const settings = getSettings();
     if (settings.theme) {
       dispatch({
@@ -270,8 +265,7 @@ const Home = (props: any) => {
 export default Home;
 
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
-  const defaultModelId = 
-  process.env.DEFAULT_MODEL || '';
+  const defaultModelId = process.env.DEFAULT_MODEL || '';
 
   return {
     props: {

@@ -29,13 +29,12 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
   }
 
   const formattedValue = (() => {
-          try {
-            return JSON.stringify(JSON.parse(value), null, 2);
-          } catch {
-            return value; // Return the original value if parsing fails
-          }
-        })()
-
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      return value; // Return the original value if parsing fails
+    }
+  })();
 
   const copyToClipboard = (e) => {
     e?.preventDefault();
@@ -116,7 +115,7 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
           overflowX: 'auto',
-          overflowY: 'auto', 
+          overflowY: 'auto',
         }}
         wrapLongLines={true} // Ensures long lines wrap instead of forcing width expansion
       >

@@ -1,11 +1,10 @@
 import { IconLoader } from '@tabler/icons-react';
 import React from 'react';
 
-const Loading = ({ message = "Loading", type = 'text' }) => {
+const Loading = ({ message = 'Loading', type = 'text' }) => {
   return (
     <>
-      { type === 'text' 
-        ? 
+      {type === 'text' ? (
         <div className="flex justify-center items-center h-screen">
           <div role="status" className="text-center">
             <svg
@@ -28,10 +27,12 @@ const Loading = ({ message = "Loading", type = 'text' }) => {
             <p className="mt-2 text-gray-500 dark:text-gray-400">{message}</p>
           </div>
         </div>
-      : 
+      ) : (
         <div className="relative w-full max-w-[600px] h-[300px] sm:h-[400px] bg-gray-100 flex items-center justify-center rounded-md shadow-md animate-none">
-          <span className={`font-medium focus:outline-none transition-colors duration-300 dark:text-white text-center`}>
-          Loading
+          <span
+            className={`font-medium focus:outline-none transition-colors duration-300 dark:text-white text-center`}
+          >
+            Loading
             <div className="relative mt-1 mb-2">
               <div className="h-1 w-32 bg-gray-200 rounded-full overflow-hidden">
                 <div className="h-full bg-green-500 animate-loadingBar"></div>
@@ -39,7 +40,7 @@ const Loading = ({ message = "Loading", type = 'text' }) => {
             </div>
           </span>
         </div>
-      }
+      )}
     </>
   );
 };

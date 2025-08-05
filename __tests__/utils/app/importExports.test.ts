@@ -1,6 +1,6 @@
 import {
   cleanData,
-  isExportFormatV1, 
+  isExportFormatV1,
   isExportFormatV2,
   isExportFormatV3,
   isExportFormatV4,
@@ -8,7 +8,6 @@ import {
 } from '@/utils/app/importExport';
 
 import { ExportFormatV1, ExportFormatV2, ExportFormatV4 } from '@/types/export';
-
 
 import { describe, expect, it } from 'vitest';
 
@@ -224,7 +223,7 @@ describe('cleanData Functions', () => {
             name: 'folder 1',
             type: 'chat',
           },
-        ]
+        ],
       });
     });
   });

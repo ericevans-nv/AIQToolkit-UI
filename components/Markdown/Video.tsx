@@ -1,24 +1,22 @@
+'use client';
+
+import { memo, useMemo, useRef } from 'react';
+
+import Loading from '@/components/Markdown/Loading';
+
 // First, define the Video component at module level
-'use client'
 
-import { memo, useMemo, useRef } from "react";
-import Loading from "@/components/Markdown/Loading";
-
-export const Video = memo(({ 
-    src, 
-    controls = true, 
-    muted = false, 
-    ...props 
-  }) => {
+export const Video = memo(
+  ({ src, controls = true, muted = false, ...props }) => {
     // Use ref to maintain stable reference for video element
     const videoRef = useRef(null);
-  
+
     // Memoize the video element to prevent re-renders from context changes
     const videoElement = useMemo(() => {
       if (src === 'loading') {
-        return <Loading message='Loading...' type='image' />;
+        return <Loading message="Loading..." type="image" />;
       }
-  
+
       return (
         <video
           ref={videoRef}
@@ -35,8 +33,10 @@ export const Video = memo(({
         </video>
       );
     }, [src, controls, muted]); // Only dependencies that should cause a re-render
-  
+
     return videoElement;
-  }, (prevProps, nextProps) => {
+  },
+  (prevProps, nextProps) => {
     return prevProps.src === nextProps.src;
-  });
+  },
+);

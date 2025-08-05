@@ -1,7 +1,17 @@
-import { saveConversation, saveConversations, updateConversation} from '@/utils/app/conversation';
+import {
+  saveConversation,
+  saveConversations,
+  updateConversation,
+} from '@/utils/app/conversation';
+
 import { v4 as uuidv4 } from 'uuid';
 
-export const useConversationOperations = ({ conversations, dispatch, t, appConfig }) => {
+export const useConversationOperations = ({
+  conversations,
+  dispatch,
+  t,
+  appConfig,
+}) => {
   const handleSelectConversation = (conversation) => {
     dispatch({
       field: 'selectedConversation',
@@ -41,13 +51,20 @@ export const useConversationOperations = ({ conversations, dispatch, t, appConfi
       [data.key]: data.value,
     };
 
-    const { single, all } = updateConversation(updatedConversation, conversations);
+    const { single, all } = updateConversation(
+      updatedConversation,
+      conversations,
+    );
 
     dispatch({ field: 'selectedConversation', value: single });
     dispatch({ field: 'conversations', value: all });
-    
+
     saveConversations(all);
   };
 
-  return { handleSelectConversation, handleNewConversation, handleUpdateConversation };
+  return {
+    handleSelectConversation,
+    handleNewConversation,
+    handleUpdateConversation,
+  };
 };

@@ -61,15 +61,15 @@ export const Chatbar = () => {
   };
 
   const handleClearConversations = () => {
-      homeDispatch({
-        field: 'selectedConversation',
-        value: {
-          id: uuidv4(),
-          name: t('New Conversation'),
-          messages: [],
-          folderId: null,
-        },
-      });
+    homeDispatch({
+      field: 'selectedConversation',
+      value: {
+        id: uuidv4(),
+        name: t('New Conversation'),
+        messages: [],
+        folderId: null,
+      },
+    });
 
     homeDispatch({ field: 'conversations', value: [] });
 
@@ -99,17 +99,17 @@ export const Chatbar = () => {
 
       saveConversation(updatedConversations[updatedConversations.length - 1]);
     } else {
-        homeDispatch({
-          field: 'selectedConversation',
-          value: {
-            id: uuidv4(),
-            name: t('New Conversation'),
-            messages: [],
-            folderId: null,
-          },
-        });
+      homeDispatch({
+        field: 'selectedConversation',
+        value: {
+          id: uuidv4(),
+          name: t('New Conversation'),
+          messages: [],
+          folderId: null,
+        },
+      });
 
-        sessionStorage.removeItem('selectedConversation');
+      sessionStorage.removeItem('selectedConversation');
     }
   };
 

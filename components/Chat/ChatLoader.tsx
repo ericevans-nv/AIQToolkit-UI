@@ -1,4 +1,5 @@
 import { FC, useEffect, useState } from 'react';
+
 import { BotAvatar } from '@/components/Avatar/BotAvatar';
 
 interface Props {
@@ -16,7 +17,10 @@ export const ChatLoader: FC<Props> = ({ statusUpdateText = '' }) => {
 
   useEffect(() => {
     const timers = config.statusMessages.map((message, index) => {
-      const delay = index === 0 ? config.initialDelay : config.initialDelay + (index * config.delayMultiplier);
+      const delay =
+        index === 0
+          ? config.initialDelay
+          : config.initialDelay + index * config.delayMultiplier;
       return setTimeout(() => {
         setCurrentMessage(message);
       }, delay);
@@ -38,7 +42,10 @@ export const ChatLoader: FC<Props> = ({ statusUpdateText = '' }) => {
         </div>
         <div className="flex items-center">
           {/* Status Update Text with Green Blinking Caret */}
-          <span className="cursor-default">{currentMessage}<span className="text-[#76b900] animate-blink">▍</span></span>
+          <span className="cursor-default">
+            {currentMessage}
+            <span className="text-[#76b900] animate-blink">▍</span>
+          </span>
         </div>
       </div>
     </div>

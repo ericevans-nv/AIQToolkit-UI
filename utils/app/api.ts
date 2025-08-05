@@ -1,6 +1,5 @@
-import { nextEndPoints } from "./const";
+import { nextEndPoints } from './const';
 
-export const getEndpoint = ({ service = 'chat'}) => {
-  return nextEndPoints[service]
+export const getEndpoint = ({ service = 'chat' }) => {
+  return nextEndPoints[service];
 };
-

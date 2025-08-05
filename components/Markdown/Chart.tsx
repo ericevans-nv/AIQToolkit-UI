@@ -1,18 +1,44 @@
-import React, { useContext } from "react";
+// Import html-to-image for generating images
+import { IconDownload } from '@tabler/icons-react';
+import React, { useContext } from 'react';
+import toast from 'react-hot-toast';
+
+import dynamic from 'next/dynamic';
+
+// Import dynamic from Next.js
+import HomeContext from '@/pages/api/home/home.context';
+
+import * as htmlToImage from 'html-to-image';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, AreaChart, Area,
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  ScatterChart, Scatter, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
-  ComposedChart, Cell
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  AreaChart,
+  Area,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  ScatterChart,
+  Scatter,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ComposedChart,
+  Cell,
 } from 'recharts';
-import dynamic from 'next/dynamic';  // Import dynamic from Next.js
-import HomeContext from "@/pages/api/home/home.context";
-import * as htmlToImage from 'html-to-image'; // Import html-to-image for generating images
-import { IconDownload } from "@tabler/icons-react";
-import toast from "react-hot-toast";
 
 // Dynamically import the ForceGraph2D component with SSR disabled
-const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
+const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
+  ssr: false,
+});
 
 // Utility function to generate a random color
 const getRandomColor = () => {
@@ -39,10 +65,10 @@ const Chart = (props: any) => {
     BarKey = '',
     LineKey = '',
     Nodes = [],
-    Links = []
+    Links = [],
   } = data;
 
-  const { 
+  const {
     state: { selectedConversation, conversations },
     dispatch,
   } = useContext(HomeContext);
@@ -75,13 +101,12 @@ const Chart = (props: any) => {
       console.error('Error generating download image:', error);
     }
   };
-  
 
   const renderChart = () => {
     switch (ChartType) {
       case 'BarChart':
         return (
-          <ResponsiveContainer width="100%" height={300} className={"p-2"}>
+          <ResponsiveContainer width="100%" height={300} className={'p-2'}>
             <BarChart id={`chart-BarChart-${Label}`} data={Data}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey={XAxisKey} />
@@ -95,7 +120,7 @@ const Chart = (props: any) => {
 
       case 'LineChart':
         return (
-          <ResponsiveContainer width="100%" height={300} className={"p-2"}>
+          <ResponsiveContainer width="100%" height={300} className={'p-2'}>
             <LineChart id={`chart-LineChart-${Label}`} data={Data}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey={XAxisKey} />
@@ -109,7 +134,7 @@ const Chart = (props: any) => {
 
       case 'PieChart':
         return (
-          <ResponsiveContainer width="100%" height={300} className={"p-2"}>
+          <ResponsiveContainer width="100%" height={300} className={'p-2'}>
             <PieChart id={`chart-PieChart-${Label}`}>
               <Tooltip />
               <Legend />
@@ -130,26 +155,37 @@ const Chart = (props: any) => {
 
       case 'AreaChart':
         return (
-          <ResponsiveContainer width="100%" height={300} className={"p-2"}>
+          <ResponsiveContainer width="100%" height={300} className={'p-2'}>
             <AreaChart id={`chart-AreaChart-${Label}`} data={Data}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey={XAxisKey} />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Area type="monotone" dataKey={YAxisKey} stroke={colors.stroke} fill={colors.fill} />
+              <Area
+                type="monotone"
+                dataKey={YAxisKey}
+                stroke={colors.stroke}
+                fill={colors.fill}
+              />
             </AreaChart>
           </ResponsiveContainer>
         );
 
       case 'RadarChart':
         return (
-          <ResponsiveContainer width="100%" height={300} className={"p-2"}>
+          <ResponsiveContainer width="100%" height={300} className={'p-2'}>
             <RadarChart id={`chart-RadarChart-${Label}`} data={Data}>
               <PolarGrid />
               <PolarAngleAxis dataKey={PolarAngleKey} />
               <PolarRadiusAxis />
-              <Radar name="Metrics" dataKey={PolarValueKey} stroke={colors.stroke} fill={colors.fill} fillOpacity={0.6} />
+              <Radar
+                name="Metrics"
+                dataKey={PolarValueKey}
+                stroke={colors.stroke}
+                fill={colors.fill}
+                fillOpacity={0.6}
+              />
               <Legend />
             </RadarChart>
           </ResponsiveContainer>
@@ -157,7 +193,7 @@ const Chart = (props: any) => {
 
       case 'ScatterChart':
         return (
-          <ResponsiveContainer width="100%" height={300} className={"p-2"}>
+          <ResponsiveContainer width="100%" height={300} className={'p-2'}>
             <ScatterChart id={`chart-ScatterChart-${Label}`}>
               <CartesianGrid />
               <XAxis type="number" dataKey={XAxisKey} name={XAxisKey} />
@@ -171,7 +207,7 @@ const Chart = (props: any) => {
 
       case 'ComposedChart':
         return (
-          <ResponsiveContainer width="100%" height={300} className={"p-2"}>
+          <ResponsiveContainer width="100%" height={300} className={'p-2'}>
             <ComposedChart id={`chart-ComposedChart-${Label}`} data={Data}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey={XAxisKey} />
@@ -186,16 +222,28 @@ const Chart = (props: any) => {
 
       case 'GraphPlot':
         return (
-          <div style={{ width: "100%", height: "auto", display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
+          <div
+            style={{
+              width: '100%',
+              height: 'auto',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '20px',
+            }}
+          >
             <ForceGraph2D
               id={`chart-GraphPlot-${Label}`}
               graphData={{
-                nodes: Nodes.map((node: any) => ({ id: node.id, name: node.label })),
+                nodes: Nodes.map((node: any) => ({
+                  id: node.id,
+                  name: node.label,
+                })),
                 links: Links.map((link: any) => ({
                   source: link.source,
                   target: link.target,
-                  label: link.label
-                }))
+                  label: link.label,
+                })),
               }}
               nodeLabel="name"
               linkLabel="label"
@@ -214,7 +262,10 @@ const Chart = (props: any) => {
 
   return (
     <div className="pb-2">
-      <IconDownload className="w-4 h-4 hover:text-[#76b900] absolute top-[4.5rem] right-[4.5rem]" onClick={handleDownload} />
+      <IconDownload
+        className="w-4 h-4 hover:text-[#76b900] absolute top-[4.5rem] right-[4.5rem]"
+        onClick={handleDownload}
+      />
       <div className="pt-4" id={`chart-${Label}`}>
         <div className="pl-4">{Label}</div>
         {renderChart()}

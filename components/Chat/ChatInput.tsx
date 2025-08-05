@@ -21,16 +21,16 @@ import {
   useRef,
   useState,
 } from 'react';
+import toast from 'react-hot-toast';
 
 import { useTranslation } from 'next-i18next';
+
+import { appConfig } from '@/utils/app/const';
+import { compressImage, getWorkflowName } from '@/utils/app/helper';
 
 import { Message } from '@/types/chat';
 
 import HomeContext from '@/pages/api/home/home.context';
-import { compressImage, getWorkflowName } from '@/utils/app/helper';
-import { appConfig } from '@/utils/app/const';
-import toast from 'react-hot-toast';
-
 
 interface Props {
   onSend: (message: Message) => void;
@@ -38,7 +38,7 @@ interface Props {
   onScrollDownClick: () => void;
   textareaRef: MutableRefObject<HTMLTextAreaElement | null>;
   showScrollDownButton: boolean;
-  controller: Ref<AbortController>
+  controller: Ref<AbortController>;
 }
 
 export const ChatInput = ({
@@ -47,7 +47,7 @@ export const ChatInput = ({
   onScrollDownClick,
   textareaRef,
   showScrollDownButton,
-  controller
+  controller,
 }: Props) => {
   const { t } = useTranslation('chat');
 
@@ -56,7 +56,7 @@ export const ChatInput = ({
     dispatch: homeDispatch,
   } = useContext(HomeContext);
 
-  const workflow = getWorkflowName()
+  const workflow = getWorkflowName();
 
   // todo add the audio file
   const recordingStartSound = new Audio('audio/recording.wav');
@@ -64,10 +64,11 @@ export const ChatInput = ({
   const [content, setContent] = useState<string>('');
   const [isTyping, setIsTyping] = useState<boolean>(false);
   const fileInputRef = useRef(null);
-  const [inputFile, setInputFile] = useState(null)
-  const [inputFileExtension, setInputFileExtension] = useState('')
-  const [inputFileContent, setInputFileContent] = useState('')
-  const [inputFileContentCompressed, setInputFileContentCompressed] = useState('')
+  const [inputFile, setInputFile] = useState(null);
+  const [inputFileExtension, setInputFileExtension] = useState('');
+  const [inputFileContent, setInputFileContent] = useState('');
+  const [inputFileContentCompressed, setInputFileContentCompressed] =
+    useState('');
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef(null);
 
@@ -82,17 +83,17 @@ export const ChatInput = ({
     setInputFileContentCompressed('');
   };
 
-  const handleFileChange = (e: { target: { files: any[]; value: null; }; }) => {
-    const file = e.target.files[0]
+  const handleFileChange = (e: { target: { files: any[]; value: null } }) => {
+    const file = e.target.files[0];
     if (file) {
       // Reset the input value so the same file can be selected again if needed
-      e.target.value = null
-      const reader = new FileReader()
+      e.target.value = null;
+      const reader = new FileReader();
       reader.onload = (loadEvent) => {
         const fullBase64String = loadEvent.target?.result;
-        processFile({ fullBase64String, file })
+        processFile({ fullBase64String, file });
       };
-      reader.readAsDataURL(file)
+      reader.readAsDataURL(file);
     }
   };
 
@@ -122,27 +123,26 @@ export const ChatInput = ({
       onSend({
         role: 'user',
         content: content,
-        attachments: [{
-          content: inputFileContent,
-          type: 'image'
-        }]
-      })
+        attachments: [
+          {
+            content: inputFileContent,
+            type: 'image',
+          },
+        ],
+      });
       setContent('');
-      setInputFile(null)
-      setInputFileExtension('')
-      setInputFileContent('')
+      setInputFile(null);
+      setInputFileExtension('');
+      setInputFileContent('');
+      setInputFileContentCompressed('');
+    } else {
+      onSend({ role: 'user', content });
+      setContent('');
+      setInputFile(null);
+      setInputFileExtension('');
+      setInputFileContent('');
       setInputFileContentCompressed('');
     }
-
-    else {
-      onSend({ role: 'user', content })
-      setContent('');
-      setInputFile(null)
-      setInputFileExtension('')
-      setInputFileContent('')
-      setInputFileContentCompressed('');
-    }
-
 
     if (window.innerWidth < 640 && textareaRef && textareaRef.current) {
       textareaRef.current.blur();
@@ -158,15 +158,13 @@ export const ChatInput = ({
     }
   };
 
-
   const handleStopConversation = () => {
-    if(webSocketMode) {
+    if (webSocketMode) {
       console.log('stop conversation is yet to be implemented');
       homeDispatch({ field: 'loading', value: false });
       homeDispatch({ field: 'messageIsStreaming', value: false });
-      return 
-    }
-    else {
+      return;
+    } else {
       try {
         controller?.current?.abort('aborted');
         setTimeout(() => {
@@ -186,11 +184,16 @@ export const ChatInput = ({
     return mobileRegex.test(userAgent);
   };
 
-
-  const processFile = ({ fullBase64String, file }: { fullBase64String: string, file: File }) => {
+  const processFile = ({
+    fullBase64String,
+    file,
+  }: {
+    fullBase64String: string;
+    file: File;
+  }) => {
     const [fileType] = file && file.type.split('/');
-    if (!["image"].includes(fileType)) {
-      alert(`Only supported file types are : ${["image"].join(', ')}`);
+    if (!['image'].includes(fileType)) {
+      alert(`Only supported file types are : ${['image'].join(', ')}`);
       return;
     }
 
@@ -199,19 +202,27 @@ export const ChatInput = ({
       return;
     }
 
-    const base64WithoutPrefix = fullBase64String.replace(/^data:image\/[a-z]+;base64,/, '');
-    const sizeInKB = (base64WithoutPrefix.length * 3 / 4) / 1024;
+    const base64WithoutPrefix = fullBase64String.replace(
+      /^data:image\/[a-z]+;base64,/,
+      '',
+    );
+    const sizeInKB = (base64WithoutPrefix.length * 3) / 4 / 1024;
     // Compress image only if it larger than 200KB
     const shouldCompress = sizeInKB > 200;
 
     if (shouldCompress) {
-      compressImage(fullBase64String, file.type, true, (compressedBase64: string) => {
-        setInputFileContentCompressed(compressedBase64);
-        setInputFileContent(fullBase64String);
-        setInputFile(file?.name);
-        const extension = file.name.split('.').pop() ?? 'jpg';
-        setInputFileExtension(extension.toLowerCase());
-      });
+      compressImage(
+        fullBase64String,
+        file.type,
+        true,
+        (compressedBase64: string) => {
+          setInputFileContentCompressed(compressedBase64);
+          setInputFileContent(fullBase64String);
+          setInputFile(file?.name);
+          const extension = file.name.split('.').pop() ?? 'jpg';
+          setInputFileExtension(extension.toLowerCase());
+        },
+      );
     } else {
       // If no compression is needed, use the original image data
       setInputFileContent(fullBase64String);
@@ -220,8 +231,7 @@ export const ChatInput = ({
       const extension = file.name.split('.').pop() ?? 'jpg';
       setInputFileExtension(extension.toLowerCase());
     }
-  }
-
+  };
 
   const handleInitModal = () => {
     const selectedPrompt = filteredPrompts[activePromptIndex];
@@ -276,28 +286,31 @@ export const ChatInput = ({
       const reader = new FileReader();
       reader.onload = (loadEvent) => {
         const fullBase64String = loadEvent.target?.result;
-        processFile({ fullBase64String, file })
+        processFile({ fullBase64String, file });
       };
       reader.readAsDataURL(file);
-
     }
   };
 
-  const handlePaste = (event: { clipboardData: any; originalEvent: { clipboardData: any; }; }) => {
-    const clipboardData = event.clipboardData || event.originalEvent.clipboardData;
+  const handlePaste = (event: {
+    clipboardData: any;
+    originalEvent: { clipboardData: any };
+  }) => {
+    const clipboardData =
+      event.clipboardData || event.originalEvent.clipboardData;
     let items = clipboardData.items;
     let isImagePasted = false;
 
     if (items) {
       for (const item of items) {
-        if (item.type.indexOf("image") === 0) {
+        if (item.type.indexOf('image') === 0) {
           isImagePasted = true;
           const file = item.getAsFile();
           // Reading the image as Data URL (base64)
           const reader = new FileReader();
           reader.onload = (loadEvent) => {
             const fullBase64String = loadEvent.target?.result;
-            processFile({ fullBase64String, file })
+            processFile({ fullBase64String, file });
           };
           reader.readAsDataURL(file);
           break; // Stop checking after finding image, preventing any text setting
@@ -318,8 +331,9 @@ export const ChatInput = ({
     if (textareaRef && textareaRef.current) {
       textareaRef.current.style.height = 'inherit';
       textareaRef.current.style.height = `${textareaRef.current?.scrollHeight}px`;
-      textareaRef.current.style.overflow = `${textareaRef?.current?.scrollHeight > 400 ? 'auto' : 'hidden'
-        }`;
+      textareaRef.current.style.overflow = `${
+        textareaRef?.current?.scrollHeight > 400 ? 'auto' : 'hidden'
+      }`;
     }
   }, [content, textareaRef]);
 
@@ -368,7 +382,11 @@ export const ChatInput = ({
   }, []);
 
   return (
-    <div className={`absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] ${isMobile() ? 'pb-14' : 'pb-4'}`}>
+    <div
+      className={`absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] ${
+        isMobile() ? 'pb-14' : 'pb-4'
+      }`}
+    >
       <div className="stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] 2xl:mx-auto 2xl:max-w-5xl">
         {messageIsStreaming && (
           <button
@@ -381,9 +399,8 @@ export const ChatInput = ({
 
         {!messageIsStreaming &&
           selectedConversation &&
-          selectedConversation.messages.length > 1 &&
-          // selectedConversation.messages[selectedConversation.messages.length - 1].role === 'assistant' && 
-          (
+          selectedConversation.messages.length > 1 && (
+            // selectedConversation.messages[selectedConversation.messages.length - 1].role === 'assistant' &&
             <button
               className="absolute top-0 left-0 right-0 mx-auto mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
               onClick={onRegenerate}
@@ -401,9 +418,17 @@ export const ChatInput = ({
               bottom: `${textareaRef?.current?.scrollHeight}px`,
               minHeight: '44px',
               maxHeight: '400px',
-              overflow: `${textareaRef.current && textareaRef.current.scrollHeight > 400 ? 'auto' : 'hidden'}`,
+              overflow: `${
+                textareaRef.current && textareaRef.current.scrollHeight > 400
+                  ? 'auto'
+                  : 'hidden'
+              }`,
             }}
-            placeholder={isRecording ? 'Listening...' : `Unlock ${workflow} knowledge and expertise`}
+            placeholder={
+              isRecording
+                ? 'Listening...'
+                : `Unlock ${workflow} knowledge and expertise`
+            }
             value={content}
             rows={1}
             onCompositionStart={() => setIsTyping(true)}
@@ -413,17 +438,14 @@ export const ChatInput = ({
             {...(appConfig?.fileUploadEnabled && {
               onDragOver: handleDragOver,
               onDrop: handleDrop,
-              onPaste: handlePaste
+              onPaste: handlePaste,
             })}
           />
-          {inputFile && inputFileContent &&
+          {inputFile && inputFileContent && (
             <div>
               <div className="relative right-0 top-0 p-1 bg-[#91c438] dark:bg-green-700 text-black dark:text-white flex items-center justify-start gap-2 rounded-small">
-                <IconPhoto
-                  className="ml-8"
-                  size={16}
-                />
-                <span >{inputFile}</span>
+                <IconPhoto className="ml-8" size={16} />
+                <span>{inputFile}</span>
                 <IconTrash
                   className="hover:text-[#ff1717e9] cursor-pointer"
                   size={16}
@@ -431,9 +453,8 @@ export const ChatInput = ({
                 />
               </div>
             </div>
-          }
-          {
-            appConfig?.fileUploadEnabled && !inputFile &&
+          )}
+          {appConfig?.fileUploadEnabled && !inputFile && (
             <>
               <button
                 className="absolute right-10 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:text-[#76b900] dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
@@ -454,17 +475,21 @@ export const ChatInput = ({
                 onChange={handleFileChange}
               />
             </>
-          }
+          )}
           <button
             onClick={handleSpeechToText}
-            className={`absolute left-2 top-2 rounded-sm p-[5px] text-neutral-800 opacity-60 dark:bg-opacity-50 dark:text-neutral-100 ${messageIsStreaming
-              ? 'text-neutral-400' // Disable hover and change color when streaming
-              : 'hover:text-[#76b900] dark:hover:text-neutral-200' // Normal hover effect
-              }`}
+            className={`absolute left-2 top-2 rounded-sm p-[5px] text-neutral-800 opacity-60 dark:bg-opacity-50 dark:text-neutral-100 ${
+              messageIsStreaming
+                ? 'text-neutral-400' // Disable hover and change color when streaming
+                : 'hover:text-[#76b900] dark:hover:text-neutral-200' // Normal hover effect
+            }`}
             disabled={messageIsStreaming}
           >
             {isRecording ? (
-              <IconPlayerStopFilled size={18} className="text-red-500 animate-blink" />
+              <IconPlayerStopFilled
+                size={18}
+                className="text-red-500 animate-blink"
+              />
             ) : (
               <IconMicrophone size={18} />
             )}
