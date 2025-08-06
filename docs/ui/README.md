@@ -1,7 +1,7 @@
 # NeMo Agent Toolkit UI Documentation
 
 ## Overview
-This directory contains comprehensive documentation for the NeMo Agent Toolkit UI, a React/Next.js application that provides a modern chat interface for AI agent interactions.
+This directory contains comprehensive documentation for the NeMo Agent toolkit UI, a React/Next.js application that provides a modern chat interface for AI agent interactions.
 
 ## Documentation Structure
 

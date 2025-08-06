@@ -1,7 +1,7 @@
 # Configuration Management
 
 ## Purpose
-The settings system provides configuration management for API endpoints, WebSocket connections, conversation data import/export, and application preferences for the NeMo Agent Toolkit UI.
+The settings system provides configuration management for API endpoints, WebSocket connections, conversation data import/export, and application preferences for the NeMo Agent toolkit UI.
 
 ## Scope
 - Route(s): Modal dialog accessible from sidebar footer

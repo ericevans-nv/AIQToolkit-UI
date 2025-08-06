@@ -1,7 +1,7 @@
 # Chat Interface
 
 ## Purpose
-The chat interface provides real-time conversational interaction with AI agents through the NeMo Agent Toolkit, supporting text input, voice input, and streaming responses with human-in-the-loop workflow capabilities.
+The chat interface provides real-time conversational interaction with AI agents through the NeMo Agent toolkit, supporting text input, voice input, and streaming responses with human-in-the-loop workflow capabilities.
 
 ## Scope
 - Route(s): `/` (main page)

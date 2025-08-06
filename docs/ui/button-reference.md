@@ -1,7 +1,7 @@
 # Button Reference
 
 ## Overview
-This document provides a comprehensive reference for all interactive buttons used throughout the NeMo Agent Toolkit UI application.
+This document provides a comprehensive reference for all interactive buttons used throughout the NeMo Agent toolkit UI application.
 
 ## Chat Interface Buttons
 

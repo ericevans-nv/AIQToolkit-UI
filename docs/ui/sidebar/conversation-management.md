@@ -1,7 +1,7 @@
 # Sidebar Conversation Management
 
 ## Purpose
-The sidebar provides conversation navigation, organization through folders, and conversation management features including search, import/export, and settings access for the NeMo Agent Toolkit UI.
+The sidebar provides conversation navigation, organization through folders, and conversation management features including search, import/export, and settings access for the NeMo Agent toolkit UI.
 
 ## Scope
 - Route(s): Available on all pages (persistent sidebar)
