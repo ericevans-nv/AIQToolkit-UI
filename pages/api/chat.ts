@@ -1,5 +1,3 @@
-import { delay } from '@/utils/app/helper';
-
 import { ChatBody } from '@/types/chat';
 
 export const config = {
@@ -11,326 +9,272 @@ export const config = {
   },
 };
 
+const generateEndpoint = 'generate';
+const chatEndpoint = 'chat';
+const chatStreamEndpoint = 'chat/stream';
+const generateStreamEndpoint = 'generate/stream';
+
+function buildGeneratePayload(messages: any[]) {
+  const userMessage = messages?.at(-1)?.content;
+  if (!userMessage) {
+    throw new Error('User message not found.');
+  }
+  return { input_message: userMessage };
+}
+
+function buildOpenAIChatPayload(messages: any[]) {
+  return {
+    messages,
+    model: 'string',
+    temperature: 0,
+    max_tokens: 0,
+    top_p: 0,
+    use_knowledge_base: true,
+    top_k: 0,
+    collection_name: 'string',
+    stop: true,
+    additionalProp1: {},
+  };
+}
+
+async function processGenerate(response: Response): Promise<Response> {
+  const data = await response.text();
+  try {
+    const parsed = JSON.parse(data);
+    const value =
+      parsed?.value ||
+      parsed?.output ||
+      parsed?.answer ||
+      (Array.isArray(parsed?.choices)
+        ? parsed.choices[0]?.message?.content
+        : null);
+    return new Response(typeof value === 'string' ? value : JSON.stringify(value));
+  } catch {
+    return new Response(data);
+  }
+}
+
+async function processChat(response: Response): Promise<Response> {
+  const data = await response.text();
+  try {
+    const parsed = JSON.parse(data);
+    const content =
+      parsed?.output ||
+      parsed?.answer ||
+      parsed?.value ||
+      (Array.isArray(parsed?.choices)
+        ? parsed.choices[0]?.message?.content
+        : null) ||
+      parsed ||
+      data;
+    return new Response(typeof content === 'string' ? content : JSON.stringify(content));
+  } catch {
+    return new Response(data);
+  }
+}
+
+async function processGenerateStream(response: Response, encoder: TextEncoder, decoder: TextDecoder, additionalProps: any): Promise<ReadableStream<Uint8Array>> {
+  const reader = response?.body?.getReader();
+  let buffer = '';
+  let streamContent = '';
+  let finalAnswerSent = false;
+  let counter = 0;
+
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        while (true) {
+          const { done, value } = await reader!.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+          streamContent += chunk;
+
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(5);
+              if (data.trim() === '[DONE]') {
+                controller.close();
+                return;
+              }
+              try {
+                const parsed = JSON.parse(data);
+                const content =
+                  parsed?.value ||
+                  parsed?.output ||
+                  parsed?.answer ||
+                  parsed?.choices?.[0]?.message?.content ||
+                  parsed?.choices?.[0]?.delta?.content;
+                if (content && typeof content === 'string') {
+                  controller.enqueue(encoder.encode(content));
+                }
+              } catch {}
+            } else if (
+              line.includes('<intermediatestep>') &&
+              line.includes('</intermediatestep>') &&
+              additionalProps.enableIntermediateSteps
+            ) {
+              controller.enqueue(encoder.encode(line));
+            } else if (line.startsWith('intermediate_data: ')) {
+              try {
+                const data = line.split('intermediate_data: ')[1];
+                const payload = JSON.parse(data);
+                const intermediateMessage = {
+                  id: payload?.id || '',
+                  status: payload?.status || 'in_progress',
+                  error: payload?.error || '',
+                  type: 'system_intermediate',
+                  parent_id: payload?.parent_id || 'default',
+                  intermediate_parent_id: payload?.intermediate_parent_id || 'default',
+                  content: {
+                    name: payload?.name || 'Step',
+                    payload: payload?.payload || 'No details',
+                  },
+                  time_stamp: payload?.time_stamp || 'default',
+                  index: counter++,
+                };
+                const msg = `<intermediatestep>${JSON.stringify(intermediateMessage)}</intermediatestep>`;
+                controller.enqueue(encoder.encode(msg));
+              } catch {}
+            }
+          }
+        }
+      } finally {
+        if (!finalAnswerSent) {
+          try {
+            const parsed = JSON.parse(streamContent);
+            const value =
+              parsed?.value ||
+              parsed?.output ||
+              parsed?.answer ||
+              parsed?.choices?.[0]?.message?.content;
+            if (value && typeof value === 'string') {
+              controller.enqueue(encoder.encode(value.trim()));
+              finalAnswerSent = true;
+            }
+          } catch {}
+        }
+        controller.close();
+        reader?.releaseLock();
+      }
+    },
+  });
+}
+
+async function processChatStream(response: Response, encoder: TextEncoder, decoder: TextDecoder, additionalProps: any): Promise<ReadableStream<Uint8Array>> {
+  const reader = response?.body?.getReader();
+  let buffer = '';
+  let counter = 0;
+
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        while (true) {
+          const { done, value } = await reader!.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(5);
+              if (data.trim() === '[DONE]') {
+                controller.close();
+                return;
+              }
+              try {
+                const parsed = JSON.parse(data);
+                const content =
+                  parsed.choices?.[0]?.message?.content ||
+                  parsed.choices?.[0]?.delta?.content;
+                if (content) {
+                  controller.enqueue(encoder.encode(content));
+                }
+              } catch {}
+            } else if (
+              line.startsWith('intermediate_data: ') &&
+              additionalProps.enableIntermediateSteps
+            ) {
+              try {
+                const data = line.split('intermediate_data: ')[1];
+                const payload = JSON.parse(data);
+                const intermediateMessage = {
+                  id: payload?.id || '',
+                  status: payload?.status || 'in_progress',
+                  error: payload?.error || '',
+                  type: 'system_intermediate',
+                  parent_id: payload?.parent_id || 'default',
+                  intermediate_parent_id: payload?.intermediate_parent_id || 'default',
+                  content: {
+                    name: payload?.name || 'Step',
+                    payload: payload?.payload || 'No details',
+                  },
+                  time_stamp: payload?.time_stamp || 'default',
+                  index: counter++,
+                };
+                const msg = `<intermediatestep>${JSON.stringify(intermediateMessage)}</intermediatestep>`;
+                controller.enqueue(encoder.encode(msg));
+              } catch {}
+            }
+          }
+        }
+      } finally {
+        controller.close();
+        reader?.releaseLock();
+      }
+    },
+  });
+}
+
 const handler = async (req: Request): Promise<Response> => {
-  // extract the request body
-  let {
+  const {
     chatCompletionURL = '',
     messages = [],
-    additionalProps = {
-      enableIntermediateSteps: true,
-    },
+    additionalProps = { enableIntermediateSteps: true },
   } = (await req.json()) as ChatBody;
 
+  let payload;
   try {
-    let payload;
-    // for generate end point the request schema is {input_message: "user question"}
-    if (chatCompletionURL.includes('generate')) {
-      if (
-        messages?.length > 0 &&
-        messages[messages.length - 1]?.role === 'user'
-      ) {
-        payload = {
-          input_message: messages[messages.length - 1]?.content ?? '',
-        };
-      } else {
-        throw new Error(
-          'User message not found: messages array is empty or invalid.',
-        );
-      }
-    }
+    payload = chatCompletionURL.includes(generateEndpoint)
+      ? buildGeneratePayload(messages)
+      : buildOpenAIChatPayload(messages);
+  } catch (err: any) {
+    return new Response(err.message || 'Invalid request.', { status: 400 });
+  }
 
-    // for chat end point it is openAI compatible schema
-    else {
-      payload = {
-        messages,
-        model: 'string',
-        temperature: 0,
-        max_tokens: 0,
-        top_p: 0,
-        use_knowledge_base: true,
-        top_k: 0,
-        collection_name: 'string',
-        stop: true,
-        additionalProp1: {},
-      };
-    }
+  const response = await fetch(chatCompletionURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Conversation-Id': req.headers.get('Conversation-Id') || '',
+    },
+    body: JSON.stringify(payload),
+  });
 
-    console.log('aiq - making request to', { url: chatCompletionURL });
+  if (!response.ok) {
+    const error = await response.text();
+    return new Response(`Error: ${error}`, { status: 500 });
+  }
 
-    let response = await fetch(chatCompletionURL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Conversation-Id': req.headers.get('Conversation-Id') || '',
-      },
-      body: JSON.stringify(payload),
-    });
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
 
-    console.log('aiq - received response from server', response.status);
-
-    if (!response.ok) {
-      let errorMessage = await response.text();
-
-      if (errorMessage.includes('<!DOCTYPE html>')) {
-        if (errorMessage.includes('404')) {
-          errorMessage = '404 - Page not found';
-        } else {
-          errorMessage =
-            'HTML response received from server, which cannot be parsed.';
-        }
-      }
-      console.log('aiq - received error response from server', errorMessage);
-      // For other errors, return a Response object with the error message
-      const formattedError = `Something went wrong. Please try again. \n\n<details><summary>Details</summary>Error Message: ${
-        errorMessage || 'Unknown error'
-      }</details>`;
-      return new Response(formattedError, {
-        status: 200, // Return 200 status
-        headers: { 'Content-Type': 'text/plain' }, // Set appropriate content type
-      });
-    }
-
-    // response handling for streaming schema
-    if (chatCompletionURL.includes('stream')) {
-      console.log('aiq - processing streaming response');
-      const encoder = new TextEncoder();
-      const decoder = new TextDecoder();
-
-      const responseStream = new ReadableStream({
-        async start(controller) {
-          const reader = response?.body?.getReader();
-          let buffer = '';
-          let counter = 0;
-          let streamContent = ''; // Accumulate content for final OutputArgsSchema processing
-          let finalAnswerSent = false; // Track if we've sent the final answer
-          try {
-            while (true) {
-              const result = await reader?.read();
-              if (!result) break;
-              const { done, value } = result;
-              if (done) break;
-
-              const chunk = decoder.decode(value, { stream: true });
-              buffer += chunk;
-              
-              // Accumulate content for generate/stream final processing
-              if (chatCompletionURL.includes('generate')) {
-                streamContent += chunk;
-              }
-              
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || '';
-
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const data = line.slice(5);
-                  if (data.trim() === '[DONE]') {
-                    controller.close();
-                    return;
-                  }
-                  try {
-                    const parsed = JSON.parse(data);
-                    const content =
-                      parsed.choices[0]?.message?.content ||
-                      parsed.choices[0]?.delta?.content ||
-                      '';
-                    if (content) {
-                      // console.log(`aiq - stream response received from server with length`, content?.length)
-                      controller.enqueue(encoder.encode(content));
-                    }
-                  } catch (error) {
-                    console.log('aiq - error parsing JSON:', error);
-                  }
-                }
-                // Handle generate/stream: only emit intermediate steps, accumulate for final processing
-                else if (chatCompletionURL.includes('generate')) {
-                  // Only emit intermediate steps as <intermediatestep> tags
-                  if (line.includes('<intermediatestep>') && line.includes('</intermediatestep>')) {
-                    controller.enqueue(encoder.encode(line));
-                  }
-                  // Do NOT enqueue raw lines - they pollute the assistant content
-                  // All content is being accumulated in streamContent for final processing
-                }
-                // Handle other non-SSE content
-                else if (line.trim() && !line.startsWith('data: ')) {
-                  // Send other content as-is (for compatibility)
-                  controller.enqueue(encoder.encode(line));
-                }
-                // TODO - fix or remove this and use websocket to support intermediate data
-                if (line.startsWith('intermediate_data: ')) {
-                  if (additionalProps.enableIntermediateSteps === true) {
-                    const data = line.split('intermediate_data: ')[1];
-                    if (data.trim() === '[DONE]') {
-                      controller.close();
-                      return;
-                    }
-                    try {
-                      const payload = JSON.parse(data);
-                      let details = payload?.payload || 'No details';
-                      let name = payload?.name || 'Step';
-                      let id = payload?.id || '';
-                      let status = payload?.status || 'in_progress';
-                      let error = payload?.error || '';
-                      let type = 'system_intermediate';
-                      let parent_id = payload?.parent_id || 'default';
-                      let intermediate_parent_id =
-                        payload?.intermediate_parent_id || 'default';
-                      let time_stamp = payload?.time_stamp || 'default';
-
-                      const intermediate_message = {
-                        id,
-                        status,
-                        error,
-                        type,
-                        parent_id,
-                        intermediate_parent_id,
-                        content: {
-                          name: name,
-                          payload: details,
-                        },
-                        time_stamp,
-                        index: counter++,
-                      };
-                      const messageString = `<intermediatestep>${JSON.stringify(
-                        intermediate_message,
-                      )}</intermediatestep>`;
-                      // console.log('intermediate step counter', counter ++ , messageString.length)
-                      controller.enqueue(encoder.encode(messageString));
-                      // await delay(1000)
-                    } catch (error) {
-                      controller.enqueue(
-                        encoder.encode(
-                          'Error parsing intermediate data: ' + error,
-                        ),
-                      );
-                      console.log('aiq - error parsing JSON:', error);
-                    }
-                  } else {
-                    console.log('aiq - intermediate data is not enabled');
-                  }
-                }
-              }
-            }
-          } catch (error) {
-            console.log('aiq - stream reading error, closing stream', error);
-            controller.close();
-          } finally {
-            // Process final OutputArgsSchema for generate/stream
-            if (chatCompletionURL.includes('generate') && !finalAnswerSent && streamContent.includes('OutputArgsSchema')) {
-              // Robust regex that handles escaped quotes within the value
-              const regex = /OutputArgsSchema\s*\(\s*value\s*=\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g;
-              const matches = [];
-              let match;
-              while ((match = regex.exec(streamContent)) !== null) {
-                matches.push(match);
-              }
-              if (matches.length > 0) {
-                // Take the last match in the entire stream
-                const lastMatch = matches[matches.length - 1];
-                const quotedValue = lastMatch[1]; // Full quoted string including quotes
-                
-                // Remove surrounding quotes and unescape
-                let finalAnswer = '';
-                if (quotedValue.startsWith('"') && quotedValue.endsWith('"')) {
-                  finalAnswer = quotedValue.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                } else if (quotedValue.startsWith("'") && quotedValue.endsWith("'")) {
-                  finalAnswer = quotedValue.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\');
-                }
-                
-                finalAnswer = finalAnswer.trim();
-                
-                if (finalAnswer) {
-                  // Send only the extracted final answer as plain text content
-                  controller.enqueue(encoder.encode(finalAnswer));
-                  finalAnswerSent = true;
-                }
-              } else {
-                console.log('Missing OutputArgsSchema.value in generate/stream finalization');
-              }
-            }
-            
-            console.log(
-              'aiq - response processing is completed, closing stream',
-            );
-            controller.close();
-            reader?.releaseLock();
-          }
-        },
-      });
-
-      return new Response(responseStream);
-    }
-
-    // response handling for non straming schema
-    else {
-      console.log('aiq - processing non streaming response');
-      const data = await response.text();
-      let parsed = null;
-
-      try {
-        parsed = JSON.parse(data);
-      } catch (error) {
-        console.log('aiq - error parsing JSON response', error);
-      }
-
-      // Special handling for generate endpoints to extract OutputArgsSchema.value
-      if (chatCompletionURL.includes('generate') && data.includes('OutputArgsSchema')) {
-        // Robust regex that handles escaped quotes within the value
-        const regex = /OutputArgsSchema\s*\(\s*value\s*=\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g;
-        const matches = [];
-        let match;
-        while ((match = regex.exec(data)) !== null) {
-          matches.push(match);
-        }
-        if (matches.length > 0) {
-          // Take the last match
-          const lastMatch = matches[matches.length - 1];
-          const quotedValue = lastMatch[1]; // Full quoted string including quotes
-          
-          // Remove surrounding quotes and unescape
-          let finalAnswer = '';
-          if (quotedValue.startsWith('"') && quotedValue.endsWith('"')) {
-            finalAnswer = quotedValue.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-          } else if (quotedValue.startsWith("'") && quotedValue.endsWith("'")) {
-            finalAnswer = quotedValue.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\');
-          }
-          
-          finalAnswer = finalAnswer.trim();
-          
-          if (finalAnswer) {
-            console.log('aiq - extracted final answer from generate response');
-            return new Response(finalAnswer);
-          }
-        } else {
-          console.log('Missing OutputArgsSchema.value in generate finalization');
-        }
-      }
-
-      // Safely extract content with proper checks for other endpoints
-      const content =
-        parsed?.output || // Check for `output`
-        parsed?.answer || // Check for `answer`
-        parsed?.value || // Check for `value`
-        (Array.isArray(parsed?.choices)
-          ? parsed.choices[0]?.message?.content
-          : null) || // Safely check `choices[0]`
-        parsed || // Fallback to the entire `parsed` object
-        data; // Final fallback to raw `data`
-
-      if (content) {
-        console.log('aiq - response processing is completed');
-        return new Response(content);
-      } else {
-        console.log('aiq - error parsing response');
-        return new Response(response.body || data);
-      }
-    }
-  } catch (error: any) {
-    console.log('error - while making request', error);
-    const formattedError = `Something went wrong. Please try again. \n\n<details><summary>Details</summary>Error Message: ${
-      error?.message || 'Unknown error'
-    }</details>`;
-    return new Response(formattedError, { status: 200 });
+  if (chatCompletionURL.includes(generateStreamEndpoint)) {
+    return new Response(await processGenerateStream(response, encoder, decoder, additionalProps));
+  } else if (chatCompletionURL.includes(chatStreamEndpoint)) {
+    return new Response(await processChatStream(response, encoder, decoder, additionalProps));
+  } else if (chatCompletionURL.includes(generateEndpoint)) {
+    return await processGenerate(response);
+  } else {
+    return await processChat(response);
   }
 };
 
