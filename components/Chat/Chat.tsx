@@ -520,21 +520,24 @@ export const Chat = () => {
 
     // Handle human-in-the-loop interactions using type guard
     if (isSystemInteractionMessage(message)) {
-      if (isOAuthConsentMessage(message)) {
-        const oauthUrl = extractOAuthUrl(message);
+      // Check for OAuth consent message and automatically open OAuth URL directly
+      if (message?.content?.input_type === 'oauth_consent') {
+        // Expect the OAuth URL to be directly in the message content
+        const oauthUrl =
+          message?.content?.oauth_url ||
+          message?.content?.redirect_url ||
+          message?.content?.text;
         if (oauthUrl) {
-          const popup = window.open(
-            oauthUrl,
-            'oauth-popup',
-            'width=600,height=700,scrollbars=yes,resizable=yes'
+          // Open the OAuth URL directly in a new tab
+          window.open(oauthUrl, '_blank');
+        } else {
+          console.error(
+            'OAuth consent message received but no URL found in content:',
+            message?.content,
           );
-          const handleOAuthComplete = (event: MessageEvent) => {
-            if (popup && !popup.closed) popup.close();
-            window.removeEventListener('message', handleOAuthComplete);
-          };
-          window.addEventListener('message', handleOAuthComplete);
+          toast.error('OAuth URL not found in message content');
         }
-        return;
+        return; // Don't process further or show modal
       }
       openModal(message);
       return;

@@ -1,7 +1,7 @@
 # Configuration Management
 
 ## Purpose
-The settings system provides configuration management for API endpoints, WebSocket connections, conversation data import/export, and application preferences for the NeMo Agent toolkit UI.
+The settings system provides configuration management for API endpoints, WebSocket connections, conversation data import/export, and application preferences for the NeMo Agent toolkit UI. It supports both HTTP and WebSocket communication modes with predefined schemas for different endpoint types.
 
 ## Scope
 - Route(s): Modal dialog accessible from sidebar footer
@@ -15,7 +15,9 @@ The settings system provides configuration management for API endpoints, WebSock
 | Settings Button | Button | Sidebar Footer | Opens modal | Gear icon with tooltip |
 | API Endpoint Input | Input | Settings Modal | Configure base URL | HTTP chat completion endpoint |
 | WebSocket URL Input | Input | Settings Modal | Configure WS URL | Real-time streaming endpoint |
-| WebSocket Schema Select | Dropdown | Settings Modal | Select schema | Predefined connection schemas |
+| WebSocket Schema Select | Dropdown | Settings Modal | Select schema | Predefined schemas: chat_stream, chat, generate_stream, generate |
+| Intermediate Steps Toggle | Toggle | Settings Modal | Enable/disable | Show AI reasoning steps during processing |
+| Auto-scroll Toggle | Toggle | Settings Modal | Enable/disable | Automatic scrolling to latest messages |
 | Theme Toggle | Toggle | Settings Modal | Light/Dark mode | Persisted preference |
 | Import Button | Button | Settings Modal | File upload | JSON conversation import |
 | Export Button | Button | Settings Modal | Download file | Export all conversations |

@@ -10,7 +10,7 @@ This document provides a comprehensive reference for all interactive buttons use
 | Button | Icon | Location | Purpose | Visibility Conditions |
 |--------|------|----------|---------|----------------------|
 | **Voice Input** | `IconMicrophone` / `IconPlayerStopFilled` | Input field left | Start/stop voice-to-text recording | Always visible; disabled while streaming |
-| **File Upload** | `IconPaperclip` | Input field right | Upload files for chat context | Only when `fileUploadEnabled` is true; hidden while streaming |
+| **File Upload** | `IconPaperclip` | Input field right | Upload files for chat context | Currently disabled (`fileUploadEnabled: false`); hidden while streaming |
 | **Send Message** | `IconSend` / Spinner | Input field right corner | Send user message | Always visible; shows spinner while streaming |
 | **Remove File** | `IconTrash` | File preview area | Remove uploaded file | Only when file is uploaded |
 

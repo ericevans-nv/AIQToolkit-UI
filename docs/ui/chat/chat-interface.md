@@ -5,8 +5,8 @@ The chat interface provides real-time conversational interaction with AI agents 
 
 ## Scope
 - Route(s): `/` (main page)
-- Primary components: `Chat`, `ChatInput`, `ChatMessage`, `ChatHeader`, `ChatLoader`
-- External deps: WebSocket for real-time streaming, speech recognition API, react-markdown for message rendering
+- Primary components: `Chat`, `ChatInput`, `ChatMessage`, `ChatHeader`, `ChatLoader`, `ChatInteractionMessage`
+- External deps: WebSocket for real-time streaming, HTTP API endpoints, speech recognition API, speech synthesis API, react-markdown for message rendering
 
 ## UI Elements
 
@@ -38,8 +38,27 @@ The chat interface provides real-time conversational interaction with AI agents 
 ```
 
 ## Behavior
-- WebSocket message handling for streaming responses
-- Auto-scrolling to latest messages
+
+**Message Processing:**
+- Dual-mode operation: WebSocket streaming and HTTP API calls
+- Support for 4 endpoint types: chat, chat/stream, generate, generate/stream
+- Real-time message streaming with character-by-character display
+- Intermediate steps visualization during AI processing
+- Human-in-the-loop workflow integration with interactive modals
+
+**Communication Modes:**
+- WebSocket mode for real-time bidirectional communication
+- HTTP streaming mode for server-sent events
+- Automatic fallback and reconnection handling
+- OAuth consent flow integration with new tab redirects
+
+**Message Features:**
+- Auto-scrolling to latest messages with manual scroll detection
+- Message editing, deletion, and regeneration capabilities
+- Copy-to-clipboard functionality for message content
+- Voice input via browser speech recognition API
+- Text-to-speech playback for accessibility
+- Markdown rendering with syntax highlighting
 
 ## Source Links
 - [components/Chat/Chat.tsx](../../../components/Chat/Chat.tsx)
