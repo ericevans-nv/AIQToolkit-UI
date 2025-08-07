@@ -11,6 +11,8 @@ import {
   isErrorMessage,
   isOAuthConsentMessage,
   validateWebSocketMessage,
+  validateConversationId,
+  validateWebSocketMessageWithConversationId,
   extractOAuthUrl,
   shouldAppendResponseContent,
   SystemResponseMessage,
@@ -360,6 +362,194 @@ describe('WebSocket Type Guards', () => {
       };
 
       expect(shouldAppendResponseContent(message)).toBe(false);
+    });
+  });
+
+  describe('validateConversationId', () => {
+    it('returns true for valid conversation ID', () => {
+      const message = {
+        conversation_id: 'valid-conversation-123',
+        type: 'system_response_message',
+      };
+
+      expect(validateConversationId(message)).toBe(true);
+    });
+
+    it('returns false for null message', () => {
+      expect(validateConversationId(null)).toBe(false);
+    });
+
+    it('returns false for undefined message', () => {
+      expect(validateConversationId(undefined)).toBe(false);
+    });
+
+    it('returns false for non-object message', () => {
+      expect(validateConversationId('string')).toBe(false);
+      expect(validateConversationId(123)).toBe(false);
+      expect(validateConversationId(true)).toBe(false);
+    });
+
+    it('returns false for missing conversation_id', () => {
+      const message = {
+        type: 'system_response_message',
+        status: 'in_progress',
+      };
+
+      expect(validateConversationId(message)).toBe(false);
+    });
+
+    it('returns false for non-string conversation_id', () => {
+      const message = {
+        conversation_id: 123,
+        type: 'system_response_message',
+      };
+
+      expect(validateConversationId(message)).toBe(false);
+    });
+
+    it('returns false for empty string conversation_id', () => {
+      const message = {
+        conversation_id: '',
+        type: 'system_response_message',
+      };
+
+      expect(validateConversationId(message)).toBe(false);
+    });
+
+    it('returns false for whitespace-only conversation_id', () => {
+      const message = {
+        conversation_id: '   \n\t  ',
+        type: 'system_response_message',
+      };
+
+      expect(validateConversationId(message)).toBe(false);
+    });
+
+    it('returns true for conversation_id with whitespace that has content', () => {
+      const message = {
+        conversation_id: '  valid-id  ',
+        type: 'system_response_message',
+      };
+
+      expect(validateConversationId(message)).toBe(true);
+    });
+  });
+
+  describe('validateWebSocketMessageWithConversationId', () => {
+    const validMessage = {
+      type: 'system_response_message',
+      conversation_id: 'valid-conversation-123',
+      status: 'in_progress',
+      content: { text: 'Hello' },
+    };
+
+    it('returns true for valid message with conversation ID', () => {
+      expect(validateWebSocketMessageWithConversationId(validMessage)).toBe(true);
+    });
+
+    it('throws error for invalid message structure', () => {
+      const invalidMessage = {
+        type: 'invalid_type',
+        conversation_id: 'valid-conversation-123',
+      };
+
+      expect(() => validateWebSocketMessageWithConversationId(invalidMessage))
+        .toThrow('Invalid WebSocket message structure');
+    });
+
+    it('throws error for null message', () => {
+      expect(() => validateWebSocketMessageWithConversationId(null))
+        .toThrow('Invalid WebSocket message structure');
+    });
+
+    it('throws error for undefined message', () => {
+      expect(() => validateWebSocketMessageWithConversationId(undefined))
+        .toThrow('Invalid WebSocket message structure');
+    });
+
+    it('throws error for missing conversation_id', () => {
+      const messageWithoutConversationId = {
+        type: 'system_response_message',
+        status: 'in_progress',
+        content: { text: 'Hello' },
+      };
+
+      expect(() => validateWebSocketMessageWithConversationId(messageWithoutConversationId))
+        .toThrow('WebSocket message missing required conversation_id');
+    });
+
+    it('throws error for empty conversation_id', () => {
+      const messageWithEmptyConversationId = {
+        type: 'system_response_message',
+        conversation_id: '',
+        status: 'in_progress',
+        content: { text: 'Hello' },
+      };
+
+      expect(() => validateWebSocketMessageWithConversationId(messageWithEmptyConversationId))
+        .toThrow('WebSocket message missing required conversation_id');
+    });
+
+    it('throws error for whitespace-only conversation_id', () => {
+      const messageWithWhitespaceConversationId = {
+        type: 'system_response_message',
+        conversation_id: '   \n\t  ',
+        status: 'in_progress',
+        content: { text: 'Hello' },
+      };
+
+      expect(() => validateWebSocketMessageWithConversationId(messageWithWhitespaceConversationId))
+        .toThrow('WebSocket message missing required conversation_id');
+    });
+
+    it('error message includes message type and conversation_id for debugging', () => {
+      const messageWithoutConversationId = {
+        type: 'system_intermediate_message',
+        status: 'in_progress',
+        content: { name: 'Step 1' },
+      };
+
+      try {
+        validateWebSocketMessageWithConversationId(messageWithoutConversationId);
+        fail('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error.message).toContain('system_intermediate_message');
+        expect(error.message).toContain('conversation_id');
+      }
+    });
+
+    it('error message includes full message JSON for debugging', () => {
+      const invalidMessage = {
+        type: 'invalid_type',
+        some_field: 'some_value',
+      };
+
+      try {
+        validateWebSocketMessageWithConversationId(invalidMessage);
+        fail('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error.message).toContain(JSON.stringify(invalidMessage));
+      }
+    });
+
+    it('validates all supported message types with conversation_id', () => {
+      const messageTypes = [
+        'system_response_message',
+        'system_intermediate_message',
+        'system_interaction_message',
+        'error'
+      ];
+
+      messageTypes.forEach(type => {
+        const message = {
+          type,
+          conversation_id: 'valid-conversation-123',
+          status: 'in_progress',
+          content: { text: 'Test' },
+        };
+
+        expect(validateWebSocketMessageWithConversationId(message)).toBe(true);
+      });
     });
   });
 });

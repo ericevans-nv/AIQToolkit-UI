@@ -33,6 +33,8 @@ import {
 import {
   WebSocketInbound,
   validateWebSocketMessage,
+  validateWebSocketMessageWithConversationId,
+  validateConversationId,
   isSystemResponseMessage,
   isSystemIntermediateMessage,
   isSystemInteractionMessage,
@@ -507,8 +509,19 @@ export const Chat = () => {
    * Processes different message types and updates conversation state
    */
   const handleWebSocketMessage = (message: any) => {
-    // Validate message structure early using type guard
-    if (!validateWebSocketMessage(message)) return;
+    // Validate message structure AND conversation ID with detailed error reporting
+    try {
+      validateWebSocketMessageWithConversationId(message);
+    } catch (error: any) {
+      console.error('WebSocket message validation failed:', error.message);
+      toast.error(`WebSocket Error: ${error.message}`);
+      
+      // Log additional debugging info
+      console.error('Raw message data:', message);
+      console.error('Available conversations:', conversationsRef.current?.map(c => ({ id: c.id, name: c.name })));
+      
+      return; // Don't process invalid messages
+    }
 
     // End loading indicators as messages arrive
     homeDispatch({ field: 'loading', value: false });
@@ -556,13 +569,25 @@ export const Chat = () => {
       return;
     }
 
-    // Find target conversation
+    // Find target conversation with enhanced error reporting
     const currentConversations = conversationsRef.current;
     const currentSelectedConversation = selectedConversationRef.current;
     const targetConversation = currentConversations.find(
       (c) => c.id === message.conversation_id
     );
-    if (!targetConversation) return;
+    
+    if (!targetConversation) {
+      const errorMsg = `WebSocket message received for unknown conversation ID: ${message.conversation_id}`;
+      console.error(errorMsg);
+      console.error('Message details:', { 
+        type: message.type, 
+        conversation_id: message.conversation_id,
+        id: message.id 
+      });
+      console.error('Available conversations:', currentConversations?.map(c => ({ id: c.id, name: c.name })));
+      
+      return;
+    }
 
     // Process message based on type using pure helpers
     let updatedMessages = targetConversation.messages;

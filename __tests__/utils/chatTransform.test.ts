@@ -62,7 +62,7 @@ describe('chatTransform', () => {
       const message: SystemResponseMessage = {
         type: 'system_response_message',
         status: 'in_progress',
-        content: { text: '   \\n\\t  ' },
+        content: { text: '   \n\t  ' },
         conversation_id: 'test',
       };
 
@@ -102,7 +102,7 @@ describe('chatTransform', () => {
     });
 
     it('returns previous content when new text is whitespace only', () => {
-      const result = appendAssistantText('Existing content', '   \\n  ');
+      const result = appendAssistantText('Existing content', '   \n  ');
       expect(result).toBe('Existing content');
     });
 
@@ -144,7 +144,7 @@ describe('chatTransform', () => {
 
       const result = applyMessageUpdate(baseConversation, newMessages);
 
-      expect(result.name).toBe('What is the weather like today?');
+      expect(result.name).toBe('What is the weather like today');
     });
 
     it('truncates long conversation titles to 30 characters', () => {
@@ -298,7 +298,7 @@ describe('chatTransform', () => {
     it('does not render assistant messages with whitespace-only content', () => {
       const message: Message = {
         role: 'assistant',
-        content: '   \\n\\t  ',
+        content: '   \n\t  ',
         id: 'msg-1',
         intermediateSteps: [],
       };

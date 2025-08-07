@@ -22,9 +22,11 @@ export function shouldAppendResponse(message: WebSocketInbound): boolean {
   }
   
   const systemResponse = message as SystemResponseMessage;
+  const text = systemResponse.content?.text;
+  
   return (
     systemResponse.status === 'in_progress' &&
-    Boolean(systemResponse.content?.text?.trim())
+    Boolean(text && text.trim())
   );
 }
 
@@ -33,6 +35,14 @@ export function shouldAppendResponse(message: WebSocketInbound): boolean {
  * Replaces empty/placeholder content, concatenates to existing content
  */
 export function appendAssistantText(previousContent: string, newText: string): string {
+  // Handle null/undefined inputs gracefully
+  if (!previousContent) {
+    previousContent = '';
+  }
+  if (!newText) {
+    newText = '';
+  }
+  
   const trimmedNew = newText.trim();
   const trimmedPrev = previousContent.trim();
   
@@ -147,7 +157,8 @@ export function shouldRenderAssistantMessage(message: Message): boolean {
     return true; // Always render non-assistant messages
   }
   
-  const hasContent = Boolean(message.content?.trim());
+  const content = message.content;
+  const hasContent = Boolean(content && content.trim());
   const hasIntermediateSteps = Boolean(message.intermediateSteps?.length);
   
   return hasContent || hasIntermediateSteps;

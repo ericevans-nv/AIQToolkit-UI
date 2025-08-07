@@ -63,6 +63,19 @@ Object.defineProperty(window, 'open', {
   })),
 })
 
+// Mock TextEncoder and TextDecoder for Edge runtime compatibility
+global.TextEncoder = class TextEncoder {
+  encode(string) {
+    return new Uint8Array(Buffer.from(string, 'utf8'));
+  }
+};
+
+global.TextDecoder = class TextDecoder {
+  decode(bytes, options = {}) {
+    return Buffer.from(bytes).toString('utf8');
+  }
+};
+
 // Reset all mocks before each test
 beforeEach(() => {
   jest.clearAllMocks()

@@ -9,14 +9,19 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jsdom',
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/components/(.*)$': '<rootDir>/components/$1',
     '^@/pages/(.*)$': '<rootDir>/pages/$1',
     '^@/utils/(.*)$': '<rootDir>/utils/$1',
     '^@/types/(.*)$': '<rootDir>/types/$1',
     '^@/hooks/(.*)$': '<rootDir>/hooks/$1',
     '^@/constants/(.*)$': '<rootDir>/constants/$1',
+    '^react-markdown$': '<rootDir>/__mocks__/react-markdown.js',
+    '^next-i18next$': '<rootDir>/__mocks__/next-i18next.js',
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(react-markdown|remark-.*|rehype-.*|unified|vfile.*|micromark.*|mdast-.*|hast-.*|next-i18next|react-i18next)/)'
+  ],
   testMatch: [
     '**/__tests__/**/*.(ts|tsx|js)',
     '**/*.(test|spec).(ts|tsx|js)'

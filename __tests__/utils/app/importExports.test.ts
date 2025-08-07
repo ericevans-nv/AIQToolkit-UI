@@ -9,7 +9,7 @@ import {
 
 import { ExportFormatV1, ExportFormatV2, ExportFormatV4 } from '@/types/export';
 
-import { describe, expect, it } from 'vitest';
+// Jest syntax - no need to import describe, expect, it
 
 describe('Export Format Functions', () => {
   describe('isExportFormatV1', () => {
