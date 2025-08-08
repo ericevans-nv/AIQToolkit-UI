@@ -93,7 +93,7 @@ export const getURLQueryParam = ({ param = '' }) => {
 
 
 export const getWorkflowName = () => {
-    const workflow = getURLQueryParam({ param: 'workflow' }) || env('NEXT_PUBLIC_WORKFLOW') || process?.env?.NEXT_PUBLIC_WORKFLOW || 'AIQ Toolkit';
+    const workflow = getURLQueryParam({ param: 'workflow' }) || env('NEXT_PUBLIC_WORKFLOW') || process?.env?.NEXT_PUBLIC_WORKFLOW || 'NeMo Agent Toolkit';
     return workflow
 }
 

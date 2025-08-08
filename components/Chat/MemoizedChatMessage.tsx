@@ -7,8 +7,12 @@ import isEqual from 'lodash/isEqual';
 export const MemoizedChatMessage: FC<Props> = memo(
   ChatMessage,
   (prevProps, nextProps) => {
-    // componenent will render if new props are only different than previous props (to prevent unnecessary re-rendering)
-    const shouldRender = isEqual(prevProps.message, nextProps.message);
-    return shouldRender;
+    // Component should NOT re-render if all props are the same
+    const messageEqual = isEqual(prevProps.message, nextProps.message);
+    const messageIndexEqual = prevProps.messageIndex === nextProps.messageIndex;
+    const onEditEqual = prevProps.onEdit === nextProps.onEdit;
+
+    // Return true if all props are equal (don't re-render)
+    return messageEqual && messageIndexEqual && onEditEqual;
   },
 );

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 name: Documentation - New Documentation Request
-description: Request additions to AIQ toolkit documentation
+description: Request additions to NeMo Agent toolkit documentation
 title: "[DOC]: "
 labels: ["doc"]
 
@@ -49,8 +49,8 @@ body:
     attributes:
       label: Where have you looked?
       placeholder: |
-       https://github.com/NVIDIA/NeMo-Agent-Toolkit/blob/main/docs/README.md and
-       https://github.com/NVIDIA/NeMo-Agent-Toolkit/blob/main/README.md
+        https://github.com/NVIDIA/NeMo-Agent-Toolkit/blob/main/docs/README.md and
+        https://github.com/NVIDIA/NeMo-Agent-Toolkit/blob/main/README.md
 
   - type: checkboxes
     id: terms

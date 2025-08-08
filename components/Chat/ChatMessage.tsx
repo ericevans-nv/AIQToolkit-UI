@@ -9,7 +9,7 @@ import {
   IconUser,
   IconVolume2,
 } from '@tabler/icons-react';
-import { FC, memo, useContext, useEffect, useRef, useState } from 'react';
+import { FC, memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 import { useTranslation } from 'next-i18next';
@@ -36,17 +36,11 @@ import remarkMath from 'remark-math';
 export interface Props {
   message: Message;
   messageIndex: number;
-  onEdit?: (editedMessage: Message) => void;
+  onEdit?: (editedMessage: Message, deleteCount?: number) => void;
 }
 
 export const ChatMessage: FC<Props> = memo(
   ({ message, messageIndex, onEdit }) => {
-    // return if the there is nothing to show
-    // no message and no intermediate steps
-    if (message?.content === '' && message?.intermediateSteps?.length === 0) {
-      return;
-    }
-
     const { t } = useTranslation('chat');
 
     const {
@@ -61,6 +55,17 @@ export const ChatMessage: FC<Props> = memo(
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+    // Memoize the markdown components to prevent recreation on every render
+    const markdownComponents = useMemo(() => {
+      return getReactMarkDownCustomComponents(messageIndex, message?.id);
+    }, [messageIndex, message?.id]);
+
+    // return if the there is nothing to show
+    // no message and no intermediate steps
+    if (message?.content === '' && message?.intermediateSteps?.length === 0) {
+      return null;
+    }
 
     const toggleEditing = () => {
       setIsEditing(!isEditing);
@@ -79,7 +84,8 @@ export const ChatMessage: FC<Props> = memo(
     const handleEditMessage = () => {
       if (message.content != messageContent) {
         if (selectedConversation && onEdit) {
-          onEdit({ ...message, content: messageContent });
+          const deleteCount = (selectedConversation.messages.length || 0) - messageIndex;
+          onEdit({ ...message, content: messageContent }, deleteCount);
         }
       }
       setIsEditing(false);
@@ -177,7 +183,7 @@ export const ChatMessage: FC<Props> = memo(
     }, []);
 
     const prepareContent = ({
-      message = {},
+      message = {} as Message,
       responseContent = true,
       intermediateStepsContent = false,
       role = 'assistant',
@@ -266,10 +272,7 @@ export const ChatMessage: FC<Props> = memo(
                       remarkPlugins={[remarkGfm, remarkMath]}
                       rehypePlugins={[rehypeRaw] as any}
                       linkTarget="_blank"
-                      components={getReactMarkDownCustomComponents(
-                        messageIndex,
-                        message?.id,
-                      )}
+                      components={markdownComponents}
                     >
                       {prepareContent({ message, role: 'user' })}
                     </ReactMarkdown>
@@ -311,10 +314,7 @@ export const ChatMessage: FC<Props> = memo(
                         ],
                       ]}
                       linkTarget="_blank"
-                      components={getReactMarkDownCustomComponents(
-                        messageIndex,
-                        message?.id,
-                      )}
+                      components={markdownComponents}
                     >
                       {prepareContent({
                         message,
@@ -339,10 +339,7 @@ export const ChatMessage: FC<Props> = memo(
                         ],
                       ]}
                       linkTarget="_blank"
-                      components={getReactMarkDownCustomComponents(
-                        messageIndex,
-                        message?.id,
-                      )}
+                      components={markdownComponents}
                     >
                       {prepareContent({
                         message,

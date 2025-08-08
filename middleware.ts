@@ -18,7 +18,7 @@ export default function middleware(req: NextRequest) {
   const response = NextResponse.next();
 
   // Check if session cookie exists
-  const sessionCookie = req.cookies.get('aiqtoolkit-session');
+  const sessionCookie = req.cookies.get('nemo-agent-toolkit-session');
 
   if (!sessionCookie) {
     // Generate a new session ID for visitors without one
@@ -27,7 +27,7 @@ export default function middleware(req: NextRequest) {
       .substr(2, 9)}`;
 
     // Set the session cookie
-    response.cookies.set('aiqtoolkit-session', sessionId, {
+    response.cookies.set('nemo-agent-toolkit-session', sessionId, {
       httpOnly: false,
       sameSite: 'lax',
       path: '/',

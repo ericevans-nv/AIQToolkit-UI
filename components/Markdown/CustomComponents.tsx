@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 
 import Chart from '@/components/Markdown/Chart';
 import { CodeBlock } from '@/components/Markdown/CodeBlock';
@@ -13,8 +13,7 @@ export const getReactMarkDownCustomComponents = (
   messageIndex = 0,
   messageId = '',
 ) => {
-  return useMemo(
-    () => ({
+  return {
       code: memo(
         ({
           node,
@@ -183,7 +182,5 @@ export const getReactMarkDownCustomComponents = (
         (props) => <CustomSummary {...props} />,
         (prevProps, nextProps) => isEqual(prevProps, nextProps),
       ),
-    }),
-    [messageIndex, messageId],
-  );
+  };
 };
