@@ -2,9 +2,6 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export default function middleware(req: NextRequest) {
-  // Log the request
-  console.log('Request:', req);
-
   // Skip middleware for static files and auth routes
   if (
     req.nextUrl.pathname.startsWith('/_next/') ||
@@ -40,9 +37,6 @@ export default function middleware(req: NextRequest) {
       response.headers.set('x-session-id', sessionId);
     }
   } else {
-    // Print session cookie
-    console.log('Session cookie:', sessionCookie);
-
     // Add existing session ID to headers for API routes
     if (req.nextUrl.pathname.startsWith('/api/')) {
       response.headers.set('x-session-id', sessionCookie.value);
