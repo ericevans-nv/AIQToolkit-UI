@@ -22,6 +22,8 @@ import { saveFolders } from '@/utils/app/folders';
 import { getWorkflowName } from '@/utils/app/helper';
 import { getSettings } from '@/utils/app/settings';
 
+import { APPLICATION_NAME } from '@/constants/constants';
+
 import { Conversation } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
@@ -42,7 +44,7 @@ const Home = (props: any) => {
     initialState,
   });
 
-  let workflow = 'NeMo Agent Toolkit';
+  let workflow = APPLICATION_NAME;
 
   const {
     state: { lightMode, folders, conversations, selectedConversation },

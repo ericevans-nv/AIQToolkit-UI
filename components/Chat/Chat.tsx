@@ -50,6 +50,8 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 
+import { SESSION_COOKIE_NAME } from '@/constants/constants';
+
 
 
 // Streaming utilities for handling SSE and NDJSON safely
@@ -270,7 +272,7 @@ export const Chat = () => {
         return null;
       };
 
-      const sessionCookie = getCookie('aiqtoolkit-session');
+      const sessionCookie = getCookie(SESSION_COOKIE_NAME);
       let wsUrl: string =
         sessionStorage.getItem('webSocketURL') ||
         webSocketURL ||

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { env } from 'next-runtime-env'
 import { Message, Conversation, WebSocketMessage, SystemResponseMessage, SystemIntermediateMessage, SystemInteractionMessage, ErrorMessage } from '@/types/chat';
+import { APPLICATION_NAME } from '@/constants/constants';
 export const getInitials = (fullName = '') => {
     if (!fullName) {
         return "";
@@ -93,7 +94,7 @@ export const getURLQueryParam = ({ param = '' }) => {
 
 
 export const getWorkflowName = () => {
-    const workflow = getURLQueryParam({ param: 'workflow' }) || env('NEXT_PUBLIC_WORKFLOW') || process?.env?.NEXT_PUBLIC_WORKFLOW || 'NeMo Agent Toolkit';
+    const workflow = getURLQueryParam({ param: 'workflow' }) || env('NEXT_PUBLIC_WORKFLOW') || process?.env?.NEXT_PUBLIC_WORKFLOW || APPLICATION_NAME;
     return workflow
 }
 
@@ -138,8 +139,8 @@ interface IntermediateStep {
 }
 
 export const processIntermediateMessage = (
-    existingSteps: IntermediateStep[] = [], 
-    newMessage: IntermediateStep = {} as IntermediateStep, 
+    existingSteps: IntermediateStep[] = [],
+    newMessage: IntermediateStep = {} as IntermediateStep,
     intermediateStepOverride = true
 ): IntermediateStep[] => {
 
@@ -150,7 +151,7 @@ export const processIntermediateMessage = (
     // Helper function to find and replace a message in the steps tree
     const replaceMessage = (steps: IntermediateStep[]): boolean => {
         for (let i = 0; i < steps.length; i++) {
-            if (steps[i].id === newMessage.id && steps[i].content?.name === newMessage.content?.name) {        
+            if (steps[i].id === newMessage.id && steps[i].content?.name === newMessage.content?.name) {
                 // Preserve the index when overriding
                 steps[i] = {
                     ...newMessage,
@@ -329,7 +330,7 @@ export const fixMalformedHtml = (content = '') => {
         fixed = replaceMalformedHTMLVideos(fixed);
         fixed = replaceMalformedMarkdownImages(fixed);
         return fixed;
-    } 
+    }
     catch (e) {
         return content; // Return original if fixing fails
     }
@@ -360,9 +361,9 @@ export const isErrorMessage = (message: any): message is ErrorMessage => {
  * Validates that a WebSocket message has required fields
  */
 export const validateWebSocketMessage = (message: any): message is WebSocketMessage => {
-    return message && 
-           typeof message === 'object' && 
-           message.type && 
+    return message &&
+           typeof message === 'object' &&
+           message.type &&
            message.conversation_id;
 };
 
@@ -379,7 +380,7 @@ export const extractOAuthUrl = (message: SystemInteractionMessage): string | nul
  * Only append for in_progress status with non-empty text
  */
 export const shouldAppendResponseContent = (message: SystemResponseMessage): boolean => {
-    return message.status === 'in_progress' && 
+    return message.status === 'in_progress' &&
            !!message.content?.text?.trim();
 };
 
@@ -411,14 +412,14 @@ export const createAssistantMessage = (
  */
 export const updateConversationTitle = (conversation: Conversation): Conversation => {
     const firstUserMessage = conversation.messages.find((m) => m.role === 'user');
-    
+
     if (firstUserMessage?.content && conversation.name === 'New Conversation') {
         return {
             ...conversation,
             name: firstUserMessage.content.substring(0, 30),
         };
     }
-    
+
     return conversation;
 };
 
@@ -439,7 +440,7 @@ export const appendToAssistantContent = (
 export const shouldRenderAssistantMessage = (message: Message): boolean => {
     const hasText = !!message.content?.trim();
     const hasSteps = !!(message.intermediateSteps && message.intermediateSteps.length > 0);
-    
+
     return message.role !== 'assistant' || hasText || hasSteps;
 };
 

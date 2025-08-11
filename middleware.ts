@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { SESSION_COOKIE_NAME } from './constants/constants';
 
 export default function middleware(req: NextRequest) {
   // Skip middleware for static files and auth routes
@@ -15,7 +16,7 @@ export default function middleware(req: NextRequest) {
   const response = NextResponse.next();
 
   // Check if session cookie exists
-  const sessionCookie = req.cookies.get('nemo-agent-toolkit-session');
+  const sessionCookie = req.cookies.get(SESSION_COOKIE_NAME);
 
   if (!sessionCookie) {
     // Generate a new session ID for visitors without one
@@ -24,7 +25,7 @@ export default function middleware(req: NextRequest) {
       .substr(2, 9)}`;
 
     // Set the session cookie
-    response.cookies.set('nemo-agent-toolkit-session', sessionId, {
+    response.cookies.set(SESSION_COOKIE_NAME, sessionId, {
       httpOnly: false,
       sameSite: 'lax',
       path: '/',
