@@ -300,9 +300,9 @@ export const ChatMessage: FC<Props> = memo(
               <div className="flex flex-col w-[90%]">
                 <div className="flex flex-col gap-2">
                   {/* for intermediate steps content  */}
-                  <div className="overflow-x-auto">
+                  <div className="w-full overflow-x-hidden overflow-y-auto">
                     <MemoizedReactMarkdown
-                      className="prose dark:prose-invert flex-1 w-full flex-grow max-w-full whitespace-normal"
+                      className="prose dark:prose-invert w-full max-w-none break-words"
                       rehypePlugins={[rehypeRaw] as any}
                       remarkPlugins={[
                         remarkGfm,
