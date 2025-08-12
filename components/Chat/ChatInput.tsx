@@ -39,6 +39,7 @@ interface Props {
   textareaRef: MutableRefObject<HTMLTextAreaElement | null>;
   showScrollDownButton: boolean;
   controller: Ref<AbortController>;
+  onStopConversation: () => void;
 }
 
 export const ChatInput = ({
@@ -48,6 +49,7 @@ export const ChatInput = ({
   textareaRef,
   showScrollDownButton,
   controller,
+  onStopConversation,
 }: Props) => {
   const { t } = useTranslation('chat');
 
@@ -158,23 +160,8 @@ export const ChatInput = ({
     }
   };
 
-  const handleStopConversation = () => {
-    if (webSocketMode) {
-      console.log('stop conversation is yet to be implemented');
-      homeDispatch({ field: 'loading', value: false });
-      homeDispatch({ field: 'messageIsStreaming', value: false });
-      return;
-    } else {
-      try {
-        controller?.current?.abort('aborted');
-        setTimeout(() => {
-          controller.current = new AbortController(); // Reset the controller
-        }, 100);
-      } catch (error) {
-        console.log('error aborting - ', error);
-      }
-    }
-  };
+      // Use the passed callback for stop conversation
+  const handleStopConversation = onStopConversation;
 
   const isMobile = () => {
     const userAgent =

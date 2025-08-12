@@ -193,6 +193,36 @@ export const Chat = () => {
   const isUserInitiatedScroll = useRef(false);
   const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  // WebSocket message tracking for stop generating functionality
+  const activeUserMessageId = useRef<string | null>(null);
+
+  /**
+   * Handles stopping conversation generation for WebSocket mode
+   * Marks the current active user message as stopped and resets UI state
+   */
+  const handleStopConversation = useCallback(() => {
+    if (webSocketModeRef?.current) {
+      console.log('Stopping generation for user message:', activeUserMessageId.current);
+
+      // Set active user message ID to null to ignore subsequent messages
+      activeUserMessageId.current = null;
+
+      // Reset UI state
+      homeDispatch({ field: 'loading', value: false });
+      homeDispatch({ field: 'messageIsStreaming', value: false });
+    } else {
+      // HTTP mode - use the existing abort controller logic
+      try {
+        controllerRef?.current?.abort('aborted');
+        setTimeout(() => {
+          controllerRef.current = new AbortController(); // Reset the controller
+        }, 100);
+      } catch (error) {
+        console.log('error aborting - ', error);
+      }
+    }
+  }, [webSocketModeRef, homeDispatch]);
+
   const openModal = (data: any = {}) => {
     setInteractionMessage(data);
     setModalOpen(true);
@@ -557,11 +587,21 @@ export const Chat = () => {
       return; // Don't process invalid messages
     }
 
+        // Filter messages based on active conversation for stop generating functionality
+    const messageConversationId = message.conversation_id;
+    const currentConversationId = selectedConversationRef.current?.id;
+
+    if (activeUserMessageId.current === null || messageConversationId !== currentConversationId) {
+      return;
+    }
+
     // End loading indicators as messages arrive
     homeDispatch({ field: 'loading', value: false });
     if (isSystemResponseComplete(message)) {
       setTimeout(() => {
         homeDispatch({ field: 'messageIsStreaming', value: false });
+        // Clear active tracking when response is complete
+        activeUserMessageId.current = null;
       }, 200);
     }
 
@@ -605,7 +645,6 @@ export const Chat = () => {
 
     // Find target conversation with enhanced error reporting
     const currentConversations = conversationsRef.current;
-    const currentSelectedConversation = selectedConversationRef.current;
     const targetConversation = currentConversations.find(
       c => c.id === message.conversation_id
     );
@@ -647,13 +686,16 @@ export const Chat = () => {
     updateRefsAndDispatch(
       updatedConversations,
       updatedConversation,
-      currentSelectedConversation
+      selectedConversationRef.current
     );
   };
 
   const handleSend = useCallback(
     async (message: Message, deleteCount = 0, retry = false) => {
       message.id = uuidv4();
+
+      // Set the active user message ID for WebSocket message tracking
+      activeUserMessageId.current = message.id;
       // chat with bot
       if (selectedConversation) {
         let updatedConversation: Conversation;
@@ -763,7 +805,7 @@ export const Chat = () => {
             });
           }
 
-          const wsMessage = {
+                              const wsMessage = {
             type: webSocketMessageTypes.userMessage,
             schema_type:
               sessionStorage.getItem('webSocketSchema') || webSocketSchema,
@@ -774,6 +816,7 @@ export const Chat = () => {
             },
             timestamp: new Date().toISOString(),
           };
+
           // console.log('Sent message via websocket', wsMessage)
           webSocketRef?.current?.send(JSON.stringify(wsMessage));
           return;
@@ -1326,6 +1369,7 @@ export const Chat = () => {
           }}
           showScrollDownButton={showScrollDownButton}
           controller={controllerRef}
+          onStopConversation={handleStopConversation}
         />
         <InteractionModal
           isOpen={modalOpen}
