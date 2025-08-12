@@ -22,6 +22,7 @@ export interface Conversation {
   name: string;
   messages: Message[];
   folderId: string | null;
+  isHomepageConversation?: boolean; // Flag to track homepage conversations before first message
 }
 
 // WebSocket Message Types
@@ -63,8 +64,8 @@ export interface ErrorMessage extends WebSocketMessageBase {
   content?: any;
 }
 
-export type WebSocketMessage = 
-  | SystemResponseMessage 
-  | SystemIntermediateMessage 
-  | SystemInteractionMessage 
+export type WebSocketMessage =
+  | SystemResponseMessage
+  | SystemIntermediateMessage
+  | SystemInteractionMessage
   | ErrorMessage;

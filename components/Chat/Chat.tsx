@@ -718,6 +718,8 @@ export const Chat = () => {
           updatedConversation = {
             ...selectedConversation,
             messages: [...selectedConversation.messages, { ...updateMessage }],
+            // Remove isHomepageConversation flag when first message is sent to make it visible in sidebar
+            isHomepageConversation: undefined,
           };
         }
         homeDispatch({

@@ -117,6 +117,27 @@ const Home = (props: any) => {
   // CONVERSATION OPERATIONS  --------------------------------------------
 
   const handleNewConversation = () => {
+    // Check if current conversation is a homepage conversation with no messages
+    if (selectedConversation?.isHomepageConversation && selectedConversation.messages.length === 0) {
+      // Just remove the homepage flag to make it visible in sidebar, don't create a new conversation
+      const updatedConversation = {
+        ...selectedConversation,
+        isHomepageConversation: undefined,
+      };
+
+      const updatedConversations = conversations.map(c =>
+        c.id === selectedConversation.id ? updatedConversation : c
+      );
+
+      dispatch({ field: 'selectedConversation', value: updatedConversation });
+      dispatch({ field: 'conversations', value: updatedConversations });
+
+      saveConversation(updatedConversation);
+      saveConversations(updatedConversations);
+
+      return;
+    }
+
     const lastConversation = conversations[conversations.length - 1];
 
     const newConversation: Conversation = {
@@ -207,16 +228,22 @@ const Home = (props: any) => {
         value: cleanedSelectedConversation,
       });
     } else {
-      const lastConversation = conversations[conversations.length - 1];
-      dispatch({
-        field: 'selectedConversation',
-        value: {
-          id: uuidv4(),
-          name: t('New Conversation'),
-          messages: [],
-          folderId: null,
-        },
-      });
+      // Create homepage conversation like sidebar does, but mark it as homepage conversation
+      const homepageConversation: Conversation = {
+        id: uuidv4(),
+        name: t('New Conversation'),
+        messages: [],
+        folderId: null,
+        isHomepageConversation: true, // Flag to track it's a homepage conversation
+      };
+
+      const updatedConversations = [...conversations, homepageConversation];
+
+      dispatch({ field: 'selectedConversation', value: homepageConversation });
+      dispatch({ field: 'conversations', value: updatedConversations });
+
+      saveConversation(homepageConversation);
+      saveConversations(updatedConversations);
     }
   }, [dispatch, t]);
 

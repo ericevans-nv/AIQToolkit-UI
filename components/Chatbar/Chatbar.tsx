@@ -128,10 +128,15 @@ export const Chatbar = () => {
   };
 
   useEffect(() => {
+    // Filter out homepage conversations that haven't had their first message sent
+    const visibleConversations = conversations.filter(
+      (conversation) => !conversation.isHomepageConversation
+    );
+
     if (searchTerm) {
       chatDispatch({
         field: 'filteredConversations',
-        value: conversations.filter((conversation) => {
+        value: visibleConversations.filter((conversation) => {
           const searchable =
             conversation.name.toLocaleLowerCase() +
             ' ' +
@@ -142,7 +147,7 @@ export const Chatbar = () => {
     } else {
       chatDispatch({
         field: 'filteredConversations',
-        value: conversations,
+        value: visibleConversations,
       });
     }
   }, [searchTerm, conversations, chatDispatch]);
