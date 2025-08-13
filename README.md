@@ -94,11 +94,11 @@ NOTE: Most of the time, you will want to select /chat/stream for intermediate re
 
 #### Setup and Configuration
 
-1. Set up [NeMo Agent Toolkit](https://docs.nvidia.com/aiqtoolkit/latest/quick-start/installing.html) following the getting started guide
+1. Set up [NeMo Agent Toolkit](https://docs.nvidia.com/nemo/agent-toolkit/latest/quick-start/installing.html) following the getting started guide
 2. Start workflow by following the [Getting Started Examples](https://github.com/NVIDIA/NeMo-Agent-Toolkit/blob/develop/examples/getting_started/simple_calculator/README.md)
 
 ```bash
-aiq serve --config_file=examples/simple_calculator/configs/config.yml
+nat serve --config_file=examples/getting_started/simple_calculator/configs/config.yml
 ```
 
 #### Testing the Calculator
@@ -115,11 +115,11 @@ Is 4 + 4 greater than the current hour of the day?
 
 #### Setup and Configuration
 
-1. Set up [NeMo Agent Toolkit](https://docs.nvidia.com/aiqtoolkit/latest/quick-start/installing.html) following the getting started guide
+1. Set up [NeMo Agent Toolkit](https://docs.nvidia.com/nemo/agent-toolkit/latest/quick-start/installing.html) following the getting started guide
 2. Start workflow by following the [HITL Example](https://github.com/NVIDIA/NeMo-Agent-Toolkit/blob/develop/examples/HITL/simple_calculator_hitl/README.md)
 
 ```bash
-aiq serve --config_file=examples/HITL/simple_calculator_hitl/configs/config-hitl.yml
+nat serve --config_file=examples/HITL/simple_calculator_hitl/configs/config-hitl.yml
 ```
 
 #### Configuring HITL Settings
@@ -146,7 +146,7 @@ Can you process my input and display the result for the given prompt: How are yo
 
 ### Server Communication
 
-The UI supports both HTTP requests (OpenAI Chat compatible) and WebSocket connections for server communication. For detailed information about WebSocket messaging integration, please refer to the [WebSocket Documentation](https://docs.nvidia.com/aiqtoolkit/latest/reference/websockets.html) in the NeMo Agent Toolkit documentation.
+The UI supports both HTTP requests (OpenAI Chat compatible) and WebSocket connections for server communication. For detailed information about WebSocket messaging integration, please refer to the [WebSocket Documentation](https://docs.nvidia.com/nemo/agent-toolkit/latest/reference/websockets.html) in the NeMo Agent Toolkit documentation.
 
 ## License
 
