@@ -54,6 +54,10 @@ const Home = (props: any) => {
   const stopConversationRef = useRef<boolean>(false);
 
   const handleSelectConversation = (conversation: Conversation) => {
+    // Clear any streaming states before switching conversations
+    dispatch({ field: 'messageIsStreaming', value: false });
+    dispatch({ field: 'loading', value: false });
+
     dispatch({
       field: 'selectedConversation',
       value: conversation,

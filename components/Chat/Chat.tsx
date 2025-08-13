@@ -266,6 +266,18 @@ export const Chat = () => {
     conversationsRef.current = conversations;
   }, [conversations]);
 
+  // Reset WebSocket state when conversation changes to prevent stale message display
+  useEffect(() => {
+    if (selectedConversation?.id) {
+      // Clear any pending WebSocket message tracking
+      activeUserMessageId.current = null;
+
+      // Clear streaming states to ensure clean conversation switch
+      homeDispatch({ field: 'messageIsStreaming', value: false });
+      homeDispatch({ field: 'loading', value: false });
+    }
+  }, [selectedConversation?.id]);
+
   useEffect(() => {
     if (webSocketModeRef?.current && !webSocketConnectedRef.current) {
       connectWebSocket();

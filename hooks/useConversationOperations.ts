@@ -13,6 +13,10 @@ export const useConversationOperations = ({
   appConfig,
 }) => {
   const handleSelectConversation = (conversation) => {
+    // Clear any streaming states before switching conversations
+    dispatch({ field: 'messageIsStreaming', value: false });
+    dispatch({ field: 'loading', value: false });
+
     dispatch({
       field: 'selectedConversation',
       value: conversation,
