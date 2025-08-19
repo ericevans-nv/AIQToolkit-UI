@@ -59,8 +59,7 @@ export const initialState: HomeInitialState = {
       : false,
   webSocketConnected: false,
   webSocketURL:
-    env('NEXT_PUBLIC_WEBSOCKET_CHAT_COMPLETION_URL') ||
-    process?.env?.NEXT_PUBLIC_WEBSOCKET_CHAT_COMPLETION_URL ||
+    process?.env?.NEXT_PUBLIC_WEBSOCKET_URL ||
     'ws://127.0.0.1:8000/websocket',
   webSocketSchema: 'chat_stream',
   webSocketSchemas: ['chat_stream', 'chat', 'generate_stream', 'generate'],

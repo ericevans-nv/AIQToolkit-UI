@@ -69,6 +69,22 @@ docker run --env-file .env -p 3000:3000 nemo-agent-toolkit-ui
 
 ## Configuration
 
+### Environment Variables
+
+The application can be configured using the following environment variables:
+
+- `NEXT_PUBLIC_WEBSOCKET_URL` - WebSocket server URL for real-time communication (default: `ws://127.0.0.1:8000/websocket`)
+
+Example `.env.local` file:
+```bash
+NEXT_PUBLIC_WEBSOCKET_URL=ws://localhost:8000/websocket
+```
+
+For production deployments, use secure WebSocket connections:
+```bash
+NEXT_PUBLIC_WEBSOCKET_URL=wss://your-server.com/websocket
+```
+
 ### HTTP API Connection
 
 Settings can be configured by selecting the `Settings` icon located on the bottom left corner of the home page.
@@ -85,8 +101,9 @@ NOTE: Most of the time, you will want to select /chat/stream for intermediate re
   - /generate/stream - Streaming response generation
   - /chat - Single response chat completion
   - /chat/stream - Streaming chat completion
-- `WebSocket URL for Completion`: WebSocket URL to connect to running NeMo Agent Toolkit server
 - `WebSocket Schema`: Workflow schema type over WebSocket connection
+
+**Note**: WebSocket URL is configured via environment variables for security reasons and cannot be changed through the UI.
 
 ## Usage Examples
 

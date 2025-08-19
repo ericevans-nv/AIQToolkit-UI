@@ -300,8 +300,8 @@ export const Chat = () => {
     const maxRetries = 3;
     const retryDelay = 1000; // 1-second delay between retries
 
-    if (!(sessionStorage.getItem('webSocketURL') || webSocketURL)) {
-      toast.error('Please set a valid WebSocket server in settings');
+    if (!webSocketURL) {
+      toast.error('WebSocket server not configured. Please set NEXT_PUBLIC_WEBSOCKET_URL environment variable.');
       return false;
     }
 
@@ -315,10 +315,7 @@ export const Chat = () => {
       };
 
       const sessionCookie = getCookie(SESSION_COOKIE_NAME);
-      let wsUrl: string =
-        sessionStorage.getItem('webSocketURL') ||
-        webSocketURL ||
-        'ws://127.0.0.1:8000/websocket';
+      let wsUrl: string = webSocketURL || 'ws://127.0.0.1:8000/websocket';
 
       // Determine if this is a cross-origin connection
       const wsUrlObj = new URL(wsUrl);
@@ -341,8 +338,7 @@ export const Chat = () => {
 
       ws.onopen = () => {
         toast.success(
-          'Connected to ' +
-            (sessionStorage.getItem('webSocketURL') || webSocketURL),
+          'Connected to ' + webSocketURL,
           {
             id: 'websocketSuccessToastId',
           }
