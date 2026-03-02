@@ -6,10 +6,16 @@ import MockWebSocket from '@/__mocks__/websocket';
 import { SESSION_COOKIE_NAME } from '@/constants';
 // Import type definitions for testing interaction message handling
 import {
+  validateWebSocketMessageWithConversationId,
+  isSystemResponseMessage,
+  isSystemIntermediateMessage,
   isSystemInteractionMessage,
+  isErrorMessage,
+  isSystemResponseComplete,
   isOAuthConsentMessage,
   extractOAuthUrl,
 } from '@/types/websocket';
+import { appendAssistantText } from '@/utils/chatTransform';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { InteractionModal } from '@/components/Chat/ChatInteractionMessage';
@@ -199,16 +205,6 @@ describe('WebSocket Functionality', () => {
           status: 'in_progress'
         };
 
-        // Mock the validation function behavior
-        const validateWebSocketMessageWithConversationId = (message: any) => {
-          if (!message.conversation_id) {
-            throw new Error('conversation_id is required');
-          }
-          if (!message.type) {
-            throw new Error('type is required');
-          }
-        };
-
         expect(() => validateWebSocketMessageWithConversationId(validMessage)).not.toThrow();
       });
 
@@ -219,17 +215,8 @@ describe('WebSocket Functionality', () => {
           status: 'in_progress'
         };
 
-        const validateWebSocketMessageWithConversationId = (message: any) => {
-          if (!message.conversation_id) {
-            throw new Error('conversation_id is required');
-          }
-          if (!message.type) {
-            throw new Error('type is required');
-          }
-        };
-
         expect(() => validateWebSocketMessageWithConversationId(invalidMessage))
-          .toThrow('conversation_id is required');
+          .toThrow('WebSocket message missing required conversation_id');
       });
 
       it('should reject message without type', () => {
@@ -239,26 +226,13 @@ describe('WebSocket Functionality', () => {
           status: 'in_progress'
         };
 
-        const validateWebSocketMessageWithConversationId = (message: any) => {
-          if (!message.conversation_id) {
-            throw new Error('conversation_id is required');
-          }
-          if (!message.type) {
-            throw new Error('type is required');
-          }
-        };
-
         expect(() => validateWebSocketMessageWithConversationId(invalidMessage))
-          .toThrow('type is required');
+          .toThrow('Invalid WebSocket message structure');
       });
     });
 
     describe('Message Type Processing', () => {
       it('should identify system response messages', () => {
-        const isSystemResponseMessage = (message: any) => {
-          return message.type === 'system_response_message';
-        };
-
         const systemMessage = {
           type: 'system_response_message',
           conversation_id: 'conv-123',
@@ -276,12 +250,8 @@ describe('WebSocket Functionality', () => {
       });
 
       it('should identify intermediate step messages', () => {
-        const isSystemIntermediateMessage = (message: any) => {
-          return message.type === 'system_intermediate_step';
-        };
-
         const intermediateMessage = {
-          type: 'system_intermediate_step',
+          type: 'system_intermediate_message',
           conversation_id: 'conv-123',
           content: { text: 'Processing step 1...' }
         };
@@ -297,21 +267,10 @@ describe('WebSocket Functionality', () => {
       });
 
       it('should identify error messages', () => {
-        const isErrorMessage = (message: any) => {
-          return message.type === 'error' || message.status === 'error';
-        };
-
         const errorMessage = {
-          type: 'error',
+          type: 'error_message',
           conversation_id: 'conv-123',
-          content: { text: 'Something went wrong' }
-        };
-
-        const statusErrorMessage = {
-          type: 'system_response_message',
-          status: 'error',
-          conversation_id: 'conv-123',
-          content: { text: 'Processing failed' }
+          content: { message: 'Something went wrong' }
         };
 
         const normalMessage = {
@@ -322,21 +281,11 @@ describe('WebSocket Functionality', () => {
         };
 
         expect(isErrorMessage(errorMessage)).toBe(true);
-        expect(isErrorMessage(statusErrorMessage)).toBe(true);
         expect(isErrorMessage(normalMessage)).toBe(false);
       });
 
       it('should identify system response complete messages', () => {
-        const isSystemResponseComplete = (message: any) => {
-          return message.type === 'system_response:complete' || message.status === 'complete';
-        };
-
         const completeMessage = {
-          type: 'system_response:complete',
-          conversation_id: 'conv-123'
-        };
-
-        const statusCompleteMessage = {
           type: 'system_response_message',
           status: 'complete',
           conversation_id: 'conv-123'
@@ -348,9 +297,15 @@ describe('WebSocket Functionality', () => {
           conversation_id: 'conv-123'
         };
 
+        const wrongTypeMessage = {
+          type: 'system_intermediate_message',
+          status: 'complete',
+          conversation_id: 'conv-123'
+        };
+
         expect(isSystemResponseComplete(completeMessage)).toBe(true);
-        expect(isSystemResponseComplete(statusCompleteMessage)).toBe(true);
         expect(isSystemResponseComplete(inProgressMessage)).toBe(false);
+        expect(isSystemResponseComplete(wrongTypeMessage)).toBe(false);
       });
     });
 
@@ -400,37 +355,12 @@ describe('WebSocket Functionality', () => {
       });
 
       it('should append to existing assistant message when streaming', () => {
-        const conversation = {
-          id: 'conv-123',
-          name: 'Test Chat',
-          messages: [
-            { id: 'msg-1', role: 'user', content: 'Hello' },
-            { id: 'msg-2', role: 'assistant', content: 'Hi ' }
-          ]
-        };
+        const existingContent = 'Hi ';
+        const newText = 'there!';
 
-        const wsMessage = {
-          type: 'system_response_message',
-          conversation_id: 'conv-123',
-          content: { text: 'there!' },
-          status: 'in_progress'
-        };
+        const result = appendAssistantText(existingContent, newText);
 
-        const appendAssistantText = (messages: any[], newText: string) => {
-          const lastMessage = messages[messages.length - 1];
-          if (lastMessage && lastMessage.role === 'assistant') {
-            return messages.map((msg, index) =>
-              index === messages.length - 1
-                ? { ...msg, content: msg.content + newText }
-                : msg
-            );
-          }
-          return messages;
-        };
-
-        const updatedMessages = appendAssistantText(conversation.messages, wsMessage.content.text);
-
-        expect(updatedMessages[1].content).toBe('Hi there!');
+        expect(result).toBe('Hi there!');
       });
 
       it('should maintain conversation reference integrity', () => {
@@ -463,10 +393,6 @@ describe('WebSocket Functionality', () => {
 
     describe('OAuth Consent Handling', () => {
       it('should identify OAuth consent messages', () => {
-        const isSystemInteractionMessage = (message: any) => {
-          return message.type === 'system_interaction_message';
-        };
-
         const oauthMessage = {
           type: 'system_interaction_message',
           conversation_id: 'conv-123',
@@ -487,12 +413,6 @@ describe('WebSocket Functionality', () => {
       });
 
       it('should extract OAuth URL from consent message', () => {
-        const extractOAuthUrl = (message: any) => {
-          return message?.content?.oauth_url ||
-                 message?.content?.redirect_url ||
-                 message?.content?.text;
-        };
-
         const oauthMessage = {
           type: 'system_interaction_message',
           content: {
