@@ -10,7 +10,7 @@ const botHeader = 'Scout Bot';
 // Security & Session
 // =============================================================================
 
-const SESSION_COOKIE_NAME = 'nemo-agent-toolkit-session';
+const SESSION_COOKIE_NAME = 'nat-session';
 const MAX_FILE_SIZE_BYTES = 5242880; // 5MB
 
 // =============================================================================

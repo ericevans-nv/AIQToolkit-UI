@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -15,10 +9,7 @@ import {
   getOAuthMode,
   buildOAuthModePreferenceMessage,
 } from '@/utils/app/const';
-import {
-  saveConversation,
-  saveConversations,
-} from '@/utils/app/conversation';
+import { saveConversation, saveConversations } from '@/utils/app/conversation';
 import {
   fetchLastMessage,
   processIntermediateMessage,
@@ -56,7 +47,6 @@ import {
   HTTP_PROXY_PATH,
   CORE_ROUTES,
   EXTENDED_ROUTES,
-  SESSION_COOKIE_NAME,
 } from '@/constants';
 import {
   buildGeneratePayload,
@@ -350,7 +340,8 @@ export const Chat = () => {
   useEffect(() => {
     // Read the in-flight-redirect marker: 'true' means this page load is a return from a redirect
     // login. Clear it immediately so this detection runs exactly once per redirect round-trip.
-    const redirectInitiated = sessionStorage.getItem('oauth_redirect_initiated') === 'true';
+    const redirectInitiated =
+      sessionStorage.getItem('oauth_redirect_initiated') === 'true';
     if (!redirectInitiated) return;
     sessionStorage.removeItem('oauth_redirect_initiated');
     const urlParams = new URLSearchParams(window.location.search);
@@ -362,7 +353,9 @@ export const Chat = () => {
       // user would otherwise get no feedback. (When a message is pending, the resume effect
       // shows an in-chat cancellation message instead, so don't double up.)
       if (!sessionStorage.getItem('oauth_pending_message')) {
-        toast.error('Authorization cancelled. Send a message to sign in and try again.');
+        toast.error(
+          'Authorization cancelled. Send a message to sign in and try again.',
+        );
       }
     }
   }, []);
@@ -373,7 +366,11 @@ export const Chat = () => {
     // cleared when the user explicitly sends a message (handleSend).
     const redirectAuthCancelled =
       sessionStorage.getItem('oauth_redirect_cancelled') === 'true';
-    if (webSocketMode && !webSocketConnectedRef.current && !redirectAuthCancelled) {
+    if (
+      webSocketMode &&
+      !webSocketConnectedRef.current &&
+      !redirectAuthCancelled
+    ) {
       connectWebSocket();
     } else {
       // todo cancel ongoing connection attempts
@@ -393,26 +390,16 @@ export const Chat = () => {
     const retryDelay = 1000; // 1-second delay between retries
 
     return new Promise((resolve) => {
-      // Get session cookie
-      const getCookie = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-      };
-
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       let wsUrl = `${protocol}//${window.location.host}${WEBSOCKET_PROXY_PATH}`;
 
-      // Add session cookie as query parameter for backend authentication
-      const sessionCookie = getCookie(SESSION_COOKIE_NAME);
-      if (sessionCookie) {
-        wsUrl += `?session=${encodeURIComponent(sessionCookie)}`;
-      }
+      // The browser sends the HttpOnly session cookie during the same-origin WebSocket upgrade.
 
       // Add conversation_id for reconnection support (HITL state restoration)
       const conversationId = selectedConversationRef.current?.id;
       if (conversationId) {
-        wsUrl += `${wsUrl.includes('?') ? '&' : '?'
+        wsUrl += `${
+          wsUrl.includes('?') ? '&' : '?'
           }conversation_id=${encodeURIComponent(conversationId)}`;
       }
 
@@ -450,7 +437,8 @@ export const Chat = () => {
                   value === undefined
                 )
                   continue;
-                wsUrl += `${wsUrl.includes('?') ? '&' : '?'
+                wsUrl += `${
+                  wsUrl.includes('?') ? '&' : '?'
                   }${encodeURIComponent(key)}=${encodeURIComponent(
                     String(value),
                   )}`;
@@ -463,7 +451,8 @@ export const Chat = () => {
                   value === undefined
                 )
                   continue;
-                wsUrl += `${wsUrl.includes('?') ? '&' : '?'
+                wsUrl += `${
+                  wsUrl.includes('?') ? '&' : '?'
                   }${encodeURIComponent(key)}=${encodeURIComponent(
                     String(value),
                   )}`;
@@ -478,7 +467,8 @@ export const Chat = () => {
             ) {
               const headersJson = JSON.stringify(customParams.headers);
               const encoded = btoa(unescape(encodeURIComponent(headersJson)));
-              wsUrl += `${wsUrl.includes('?') ? '&' : '?'
+              wsUrl += `${
+                wsUrl.includes('?') ? '&' : '?'
                 }_ws_headers=${encodeURIComponent(encoded)}`;
             }
           }
@@ -594,11 +584,17 @@ export const Chat = () => {
   const persistOAuthPendingMessage = () => {
     const conversation = selectedConversationRef.current;
     if (!conversation) return;
-    const lastUserMessage = fetchLastMessage({ messages: conversation.messages, role: 'user' });
+    const lastUserMessage = fetchLastMessage({
+      messages: conversation.messages,
+      role: 'user',
+    });
     if (!lastUserMessage) return;
     // Persist the message (and its conversation) that triggered auth so the resume effect can
     // resubmit it after the redirect navigates the tab away and back. Cleared once resubmitted.
-    sessionStorage.setItem('oauth_pending_message', JSON.stringify(lastUserMessage));
+    sessionStorage.setItem(
+      'oauth_pending_message',
+      JSON.stringify(lastUserMessage),
+    );
     sessionStorage.setItem('oauth_pending_conversation_id', conversation.id);
   };
 
@@ -616,7 +612,7 @@ export const Chat = () => {
       const popup = window.open(
         oauthUrl,
         'oauth-popup',
-        'width=600,height=700,scrollbars=yes,resizable=yes'
+        'width=600,height=700,scrollbars=yes,resizable=yes',
       );
       // Only trust messages from our own popup. The cancel page is posted from the NAT
       // server origin (distinct from both this app and the IdP that oauthUrl points to)
@@ -845,7 +841,9 @@ export const Chat = () => {
       homeDispatch({ field: 'loading', value: false });
       homeDispatch({ field: 'messageIsStreaming', value: false });
       activeUserMessageId.current = null;
-      toast.error(message?.message || 'Authentication failed or was cancelled.');
+      toast.error(
+        message?.message || 'Authentication failed or was cancelled.',
+      );
       return;
     }
     try {
@@ -1593,9 +1591,15 @@ export const Chat = () => {
   // After returning from the OAuth provider, resubmit the message that triggered auth.
   useEffect(() => {
     const pendingMessageRaw = sessionStorage.getItem('oauth_pending_message');
-    const pendingConversationId = sessionStorage.getItem('oauth_pending_conversation_id');
+    const pendingConversationId = sessionStorage.getItem(
+      'oauth_pending_conversation_id',
+    );
     if (!pendingMessageRaw || !pendingConversationId) return;
-    if (!selectedConversation || selectedConversation.id !== pendingConversationId) return;
+    if (
+      !selectedConversation ||
+      selectedConversation.id !== pendingConversationId
+    )
+      return;
 
     // The success page runs at the NAT server origin, so sessionStorage is cross-origin and
     // unavailable here. The flag is instead passed back as a URL query parameter.
@@ -1603,7 +1607,9 @@ export const Chat = () => {
     const authCompleted = urlParams.get('oauth_auth_completed');
     if (authCompleted) {
       urlParams.delete('oauth_auth_completed');
-      const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+      const cleanUrl =
+        window.location.pathname +
+        (urlParams.toString() ? '?' + urlParams.toString() : '');
       window.history.replaceState({}, '', cleanUrl);
     }
 
@@ -1621,16 +1627,33 @@ export const Chat = () => {
       if (conversation) {
         const messages = conversation.messages;
         const lastMessage = messages.at(-1);
-        const updatedMessages = lastMessage?.role === 'assistant'
+        const updatedMessages =
+          lastMessage?.role === 'assistant'
           ? messages.map((m, idx) =>
-              idx === messages.length - 1 ? updateAssistantMessage(m, 'Authorization cancelled.') : m
+                idx === messages.length - 1
+                  ? updateAssistantMessage(m, 'Authorization cancelled.')
+                  : m,
             )
-          : [...messages, createAssistantMessage(undefined, undefined, 'Authorization cancelled.')];
-        const updatedConversation = { ...conversation, messages: updatedMessages };
-        const updatedConversations = conversationsRef.current.map(c =>
-          c.id === updatedConversation.id ? updatedConversation : c
+            : [
+                ...messages,
+                createAssistantMessage(
+                  undefined,
+                  undefined,
+                  'Authorization cancelled.',
+                ),
+              ];
+        const updatedConversation = {
+          ...conversation,
+          messages: updatedMessages,
+        };
+        const updatedConversations = conversationsRef.current.map((c) =>
+          c.id === updatedConversation.id ? updatedConversation : c,
         );
-        updateRefsAndDispatch(updatedConversations, updatedConversation, conversation);
+        updateRefsAndDispatch(
+          updatedConversations,
+          updatedConversation,
+          conversation,
+        );
       }
       return;
     }

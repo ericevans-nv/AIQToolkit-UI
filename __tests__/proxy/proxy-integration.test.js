@@ -99,9 +99,9 @@ describe('Proxy Server Integration Tests', () => {
           return;
         }
 
-        const ws = new WebSocket(
-          `ws://localhost:${PROXY_PORT}/ws?session=test_session`,
-        );
+        const ws = new WebSocket(`ws://localhost:${PROXY_PORT}/ws`, {
+          headers: { Cookie: 'nat-session=test_session' },
+        });
 
         const timeout = setTimeout(() => {
           ws.close();
@@ -141,9 +141,9 @@ describe('Proxy Server Integration Tests', () => {
           return;
         }
 
-        const ws = new WebSocket(
-          `ws://localhost:${PROXY_PORT}/ws?session=test_persist`,
-        );
+        const ws = new WebSocket(`ws://localhost:${PROXY_PORT}/ws`, {
+          headers: { Cookie: 'nat-session=test_persist' },
+        });
 
         let openTime;
         const timeout = setTimeout(() => {

@@ -1,10 +1,11 @@
 /**
- * WebSocket tests including session cookie handling and stop generating functionality
+ * WebSocket tests including session-safe URLs and stop generating functionality
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 
+import { buildOAuthModePreferenceMessage } from '@/utils/app/const';
 // Import type definitions for testing interaction message handling
 import {
   isSystemInteractionMessage,
@@ -14,7 +15,6 @@ import {
 import { InteractionModal } from '@/components/Chat/ChatInteractionMessage';
 import MockWebSocket from '@/__mocks__/websocket';
 import { SESSION_COOKIE_NAME } from '@/constants';
-import { buildOAuthModePreferenceMessage } from '@/utils/app/const';
 
 // Mock react-hot-toast for notification tests
 jest.mock('react-hot-toast', () => ({
@@ -35,87 +35,22 @@ describe('WebSocket Functionality', () => {
   });
 
   describe('Session Cookie Handling', () => {
-    it('should always send session cookies with WebSocket connections using the correct constant', () => {
-      // Test that session cookie is properly extracted and appended to WebSocket URL
-      const mockSessionId = 'test_session_12345';
+    it('should keep session credentials out of the WebSocket URL', () => {
       const baseUrl = 'ws://test-server.com/websocket';
+      const conversationId = 'conversation-123';
+      const wsUrl = `${baseUrl}?conversation_id=${encodeURIComponent(
+        conversationId,
+      )}`;
 
-      // Simulate the cookie extraction logic from the actual implementation
-      const mockDocumentCookie = `other=value; ${SESSION_COOKIE_NAME}=${mockSessionId}; another=test`;
-
-      // Extract cookie using the same logic as the real implementation
-      const getCookie = (name: string, documentCookie: string) => {
-        const value = `; ${documentCookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      const sessionCookie = getCookie(SESSION_COOKIE_NAME, mockDocumentCookie);
-
-      // Build WebSocket URL with session cookie (same logic as real implementation)
-      let wsUrl = baseUrl;
-      if (sessionCookie) {
-        const separator = wsUrl.includes('?') ? '&' : '?';
-        wsUrl += `${separator}session=${encodeURIComponent(sessionCookie)}`;
-      }
-
-      // Verify the session cookie was found and URL was built correctly
-      expect(sessionCookie).toBe(mockSessionId);
-      expect(wsUrl).toBe(
-        `${baseUrl}?session=${encodeURIComponent(mockSessionId)}`,
-      );
-
-      // Verify WebSocket is created with the session cookie
       const ws = new MockWebSocket(wsUrl);
-      expect(ws.url).toContain(`session=${encodeURIComponent(mockSessionId)}`);
-      expect(ws.url).toContain(
-        SESSION_COOKIE_NAME.replace('nemo-agent-toolkit-session', 'session'),
-      ); // URL param vs cookie name
+
+      expect(ws.url).toContain(`conversation_id=${conversationId}`);
+      expect(ws.url).not.toContain('session=');
+      expect(ws.url).not.toContain(SESSION_COOKIE_NAME);
     });
 
     it('should use the correct session cookie constant name', () => {
-      // Verify we're using the constant and not a hardcoded value
-      expect(SESSION_COOKIE_NAME).toBe('nemo-agent-toolkit-session');
-
-      // Test with the actual constant
-      const mockCookie = `test=value; ${SESSION_COOKIE_NAME}=session123; other=value`;
-
-      const getCookie = (name: string, documentCookie: string) => {
-        const value = `; ${documentCookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      const result = getCookie(SESSION_COOKIE_NAME, mockCookie);
-      expect(result).toBe('session123');
-    });
-
-    it('should handle missing session cookies gracefully', () => {
-      const baseUrl = 'ws://test-server.com/websocket';
-      const mockDocumentCookie = 'other=value; different=cookie';
-
-      const getCookie = (name: string, documentCookie: string) => {
-        const value = `; ${documentCookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      const sessionCookie = getCookie(SESSION_COOKIE_NAME, mockDocumentCookie);
-
-      // Should be null when cookie not found
-      expect(sessionCookie).toBeNull();
-
-      // URL should remain unchanged
-      let wsUrl = baseUrl;
-      if (sessionCookie) {
-        const separator = wsUrl.includes('?') ? '&' : '?';
-        wsUrl += `${separator}session=${encodeURIComponent(sessionCookie)}`;
-      }
-
-      expect(wsUrl).toBe(baseUrl); // No session parameter added
+      expect(SESSION_COOKIE_NAME).toBe('nat-session');
     });
   });
 
@@ -195,17 +130,14 @@ describe('WebSocket Functionality', () => {
       expect(MockWebSocket.lastInstance).toBe(ws2);
     });
 
-    it('should create WebSocket with session cookie in URL', () => {
-      const sessionId = 'integration_test_session';
-      const wsUrl = `ws://test.com/websocket?session=${encodeURIComponent(
-        sessionId,
-      )}`;
+    it('should create WebSocket with a conversation ID and no session credential', () => {
+      const wsUrl = 'ws://test.com/websocket?conversation_id=conversation-123';
 
       const ws = new MockWebSocket(wsUrl);
 
       expect(ws.url).toBe(wsUrl);
-      expect(ws.url).toContain('session=');
-      expect(ws.url).toContain(encodeURIComponent(sessionId));
+      expect(ws.url).toContain('conversation_id=conversation-123');
+      expect(ws.url).not.toContain('session=');
     });
   });
 

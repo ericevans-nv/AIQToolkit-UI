@@ -20,29 +20,16 @@ export default function middleware(req: NextRequest) {
   const sessionCookie = req.cookies.get(SESSION_COOKIE_NAME);
 
   if (!sessionCookie) {
-    // Generate a new session ID for visitors without one
-    const sessionId = `session_${Date.now()}_${Math.random()
-      .toString(36)
-      .substr(2, 9)}`;
+    const sessionId = crypto.randomUUID();
 
     // Set the session cookie
     response.cookies.set(SESSION_COOKIE_NAME, sessionId, {
-      httpOnly: false,
+      httpOnly: true,
       sameSite: 'lax',
       path: '/',
       secure: process.env.NODE_ENV === 'production',
       maxAge: 30 * 24 * 60 * 60, // 30 days
     });
-
-    // Add session ID to headers for API routes
-    if (req.nextUrl.pathname.startsWith(`${HTTP_PROXY_PATH}/`)) {
-      response.headers.set('x-session-id', sessionId);
-    }
-  } else {
-    // Add existing session ID to headers for API routes
-    if (req.nextUrl.pathname.startsWith(`${HTTP_PROXY_PATH}/`)) {
-      response.headers.set('x-session-id', sessionCookie.value);
-    }
   }
 
   return response;

@@ -185,6 +185,8 @@ The UI supports two communication modes:
 - Enables server-initiated messages and interruptions
 - Best for: Interactive workflows, multi-turn conversations, HITL scenarios
 
+The UI automatically creates a cryptographically random `nat-session` cookie. The cookie is HttpOnly, uses `SameSite=Lax`, and is sent by the browser during same-origin WebSocket upgrades; JavaScript and WebSocket URL configuration are not required. Upgrading from a version that used the previous UI cookie name rotates the session once, so an active workflow from before the upgrade cannot reconnect afterward.
+
 For detailed WebSocket integration and message formats, refer to the [WebSocket Documentation](https://docs.nvidia.com/nemo/agent-toolkit/latest/reference/websockets.html) in the NeMo Agent Toolkit documentation.
 
 ### Settings Options
